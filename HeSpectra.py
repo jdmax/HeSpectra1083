@@ -1,3 +1,6 @@
+# Helium Spectrum Calculation at varied magnetic field based on Fortran from P.J. Nacher
+# Translation to Python, NumPy, J. Maxwell, 2025
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -7,16 +10,15 @@ def main():
     Main function that calculates the structure and spectra of 1083 nm transitions in He3 and He4.
     It prompts for field value and temperature (for Doppler widths) and outputs results.
     """
+    # Output folder
+    out_folder = "output/"
+
     # Constants
     zero = 0.0
     epsilon = 1e-12
-    un = 1.0
-    dx = 2.0
-    tx = 3.0
-    sx = 6.0
-    r2 = np.sqrt(dx)
-    r3 = np.sqrt(tx)
-    r6 = np.sqrt(sx)
+    r2 = np.sqrt(2)
+    r3 = np.sqrt(3)
+    r6 = np.sqrt(6)
 
     # Fine structure, He4
     e14 = 2291.175e-3  # J=1 level in GHz (e2=reference)
@@ -55,24 +57,24 @@ def main():
 
     # Matrix P4 for |J,mJ> coupling
     P4 = np.zeros((9, 9))
-    P4[0, 0] = un
-    P4[1, 1] = un / r2
-    P4[1, 3] = un / r2
-    P4[2, 2] = un / r6
-    P4[2, 4] = dx / r6
-    P4[2, 6] = un / r6
-    P4[3, 5] = un / r2
-    P4[3, 7] = un / r2
-    P4[4, 8] = un
-    P4[5, 1] = -un / r2
-    P4[5, 3] = un / r2
-    P4[6, 2] = -un / r2
-    P4[6, 6] = un / r2
-    P4[7, 5] = -un / r2
-    P4[7, 7] = un / r2
-    P4[8, 2] = un / r3
-    P4[8, 4] = -un / r3
-    P4[8, 6] = un / r3
+    P4[0, 0] = 1.0
+    P4[1, 1] = 1.0 / r2
+    P4[1, 3] = 1.0 / r2
+    P4[2, 2] = 1.0 / r6
+    P4[2, 4] = 2.0 / r6
+    P4[2, 6] = 1.0 / r6
+    P4[3, 5] = 1.0 / r2
+    P4[3, 7] = 1.0 / r2
+    P4[4, 8] = 1.0
+    P4[5, 1] = -1.0 / r2
+    P4[5, 3] = 1.0 / r2
+    P4[6, 2] = -1.0 / r2
+    P4[6, 6] = 1.0 / r2
+    P4[7, 5] = -1.0 / r2
+    P4[7, 7] = 1.0 / r2
+    P4[8, 2] = 1.0 / r3
+    P4[8, 4] = -1.0 / r3
+    P4[8, 6] = 1.0 / r3
     invP4 = np.linalg.inv(P4)
 
     # Hfs for He4
@@ -81,7 +83,7 @@ def main():
     Hf4P[6, 6] = e14  # fine structure term in coupled basis |J,mj>
     Hf4P[7, 7] = e14
     Hf4P[8, 8] = e04
-    # Compute invP.Hf.P
+    # Compute invP.Hf.P, @ is Numpy matrix multiplication
     Hf4P = invP4 @ Hf4P @ P4
 
     # Zeeman term for He4
@@ -97,26 +99,26 @@ def main():
 
     # Reduced matrix F6/As for He3
     F6red = np.zeros((6, 6))
-    F6red[0, 0] = un / dx
-    F6red[1, 3] = un / r2
-    F6red[2, 2] = -un / dx
-    F6red[2, 4] = un / r2
-    F6red[3, 1] = un / r2
-    F6red[3, 3] = -un / dx
-    F6red[4, 2] = un / r2
-    F6red[5, 5] = un / dx
+    F6red[0, 0] = 1.0 / 2
+    F6red[1, 3] = 1.0 / r2
+    F6red[2, 2] = -1.0 / 2
+    F6red[2, 4] = 1.0 / r2
+    F6red[3, 1] = 1.0 / r2
+    F6red[3, 3] = -1.0 / 2
+    F6red[4, 2] = 1.0 / r2
+    F6red[5, 5] = 1.0 / 2
 
     # 23S state for He3
     Hhf3S = aS * F6red
 
     # Zeeman term for 23S He3
     Hzee3S = np.zeros((6, 6))
-    Hzee3S[0, 0] = gsS + gi / dx
-    Hzee3S[1, 1] = gi / dx
-    Hzee3S[2, 2] = -gsS + gi / dx
-    Hzee3S[3, 3] = gsS - gi / dx
-    Hzee3S[4, 4] = -gi / dx
-    Hzee3S[5, 5] = -gsS - gi / dx
+    Hzee3S[0, 0] = gsS + gi / 2.0
+    Hzee3S[1, 1] = gi / 2.0
+    Hzee3S[2, 2] = -gsS + gi / 2.0
+    Hzee3S[3, 3] = gsS - gi / 2.0
+    Hzee3S[4, 4] = -gi / 2.0
+    Hzee3S[5, 5] = -gsS - gi / 2.0
 
     # 23P state for He3
     e0 = e03
@@ -133,32 +135,32 @@ def main():
 
     # Hyperfine structure for 23P He3
     Hcor = np.zeros((18, 18))
-    Hcor[0, 0] = d + dx * e
+    Hcor[0, 0] = d + 2.0 * e
     Hcor[1, 1] = -4.0 * e
-    Hcor[2, 2] = -d + dx * e
-    Hcor[3, 1] = tx * e
+    Hcor[2, 2] = -d + 2.0 * e
+    Hcor[3, 1] = 3.0 * e
     Hcor[3, 3] = d
-    Hcor[4, 2] = -tx * e
+    Hcor[4, 2] = -3.0 * e
     Hcor[5, 5] = -d
-    Hcor[6, 4] = tx * e
-    Hcor[6, 6] = d - dx * e
-    Hcor[7, 5] = -tx * e
+    Hcor[6, 4] = 3.0 * e
+    Hcor[6, 6] = d - 2.0 * e
+    Hcor[7, 5] = -3.0 * e
     Hcor[7, 7] = 4.0 * e
-    Hcor[8, 8] = -d - dx * e
-    Hcor[9, 1] = r2 * (d + tx * e)
+    Hcor[8, 8] = -d - 2.0 * e
+    Hcor[9, 1] = r2 * (d + 3.0 * e)
     Hcor[9, 3] = -r2 * e
-    Hcor[10, 2] = r2 * (d - tx * e)
-    Hcor[10, 4] = r2 * dx * e
+    Hcor[10, 2] = r2 * (d - 3.0 * e)
+    Hcor[10, 4] = r2 * 2.0 * e
     Hcor[11, 5] = -r2 * e
-    Hcor[12, 2] = r2 * sx * e
+    Hcor[12, 2] = r2 * 6.0 * e
     Hcor[12, 4] = r2 * d
     Hcor[12, 6] = -r2 * e
     Hcor[13, 5] = r2 * d
-    Hcor[13, 7] = r2 * dx * e
+    Hcor[13, 7] = r2 * 2.0 * e
     Hcor[14, 8] = -r2 * e
-    Hcor[15, 5] = r2 * sx * e
-    Hcor[15, 7] = r2 * (d - tx * e)
-    Hcor[16, 8] = r2 * (d + tx * e)
+    Hcor[15, 5] = r2 * 6.0 * e
+    Hcor[15, 7] = r2 * (d - 3.0 * e)
+    Hcor[16, 8] = r2 * (d + 3.0 * e)
 
     # Apply diagonal symmetry
     for i in range(1, 18):
@@ -195,8 +197,8 @@ def main():
     Hzee3P[8, 8] = -gl3 - gsP
 
     for i in range(9):
-        Hzee3P[i + 9, i + 9] = Hzee3P[i, i] - gi / dx  # assign second block
-        Hzee3P[i, i] = Hzee3P[i, i] + gi / dx  # modify first block
+        Hzee3P[i + 9, i + 9] = Hzee3P[i, i] - gi / 2.0  # assign second block
+        Hzee3P[i, i] = Hzee3P[i, i] + gi / 2.0  # modify first block
 
     # Get user input
     B, Temp = get_user_input()
@@ -219,10 +221,10 @@ def main():
     V3P = V3P[:, idx]
 
     # Write energy levels for He3
-    with open("Ai.dat", "w") as f:
+    with open(out_folder+"Ai.dat", "w") as f:
         for i in range(6):
             f.write(f"{W3S[i]:.8f} ")
-    with open("Bj.dat", "w") as f:
+    with open(out_folder+"Bj.dat", "w") as f:
         for i in range(18):
             f.write(f"{W3P[i]:.8f} ")
 
@@ -239,9 +241,9 @@ def main():
     eC1 = W3P[8] - W3S[5]  # Reference for energy offsets
 
     # Write transitions for He3
-    write_transitions("He3plus.dat", B, r3pe, r3pf, indap, indbp, eC1)
-    write_transitions("He3moins.dat", B, r3me, r3mf, indam, indbm, eC1)
-    write_transitions("He3pi.dat", B, r3pie, r3pif, indapi, indbpi, eC1)
+    write_transitions(out_folder+"He3plus.dat", B, r3pe, r3pf, indap, indbp, eC1)
+    write_transitions(out_folder+"He3minus.dat", B, r3me, r3mf, indam, indbm, eC1)
+    write_transitions(out_folder+"He3pi.dat", B, r3pie, r3pif, indapi, indbpi, eC1)
 
     # Calculate for He4
     W4S = np.zeros(3)
@@ -249,9 +251,9 @@ def main():
     W4S[1] = zero
     W4S[0] = -mu * B * gsS  # Fixed bug from original code
     V4S = np.zeros((3, 3))
-    V4S[0, 0] = un
-    V4S[1, 1] = un
-    V4S[2, 2] = un
+    V4S[0, 0] = 1.0
+    V4S[1, 1] = 1.0
+    V4S[2, 2] = 1.0
 
     H4P = Hf4P + mu * B * Hzee4P
     W4P, V4P = np.linalg.eigh(H4P)
@@ -261,10 +263,10 @@ def main():
     V4P = V4P[:, idx]
 
     # Write energy levels for He4
-    with open("Yi.dat", "w") as f:
+    with open(out_folder+"Yi.dat", "w") as f:
         for i in range(3):
             f.write(f"{W4S[i]:.8f} ")
-    with open("Zi.dat", "w") as f:
+    with open(out_folder+"Zi.dat", "w") as f:
         for i in range(9):
             f.write(f"{W4P[i]:.8f} ")
 
@@ -282,20 +284,17 @@ def main():
     C1C9 = (W3P[16] - W3S[2]) - eC1  # C9-C1 transition energy difference
 
     # Write transitions for He4
-    write_transitions("He4plus.dat", B, r4pe, r4pf, indyp, indzp, eD2 + D2C9 - C1C9)
-    write_transitions("He4moins.dat", B, r4me, r4mf, indym, indzm, eD2 + D2C9 - C1C9)
-    write_transitions("He4pi.dat", B, r4pie, r4pif, indypi, indzpi, eD2 + D2C9 - C1C9)
+    write_transitions(out_folder+"He4plus.dat", B, r4pe, r4pf, indyp, indzp, eD2 + D2C9 - C1C9)
+    write_transitions(out_folder+"He4minus.dat", B, r4me, r4mf, indym, indzm, eD2 + D2C9 - C1C9)
+    write_transitions(out_folder+"He4pi.dat", B, r4pie, r4pif, indypi, indzpi, eD2 + D2C9 - C1C9)
 
     # Generate Doppler-broadened spectra
-    generate_spectra(r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
+    generate_spectra(out_folder, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
                      r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4)
 
 
 def get_user_input():
     """Get magnetic field and temperature values from user"""
-    print("Version of April 25, 2025, bugs fixed")
-    print("(unsorted indices for Yis and Zjs in He4pi.dat, and wrong order of Yis)")
-    print("")
     print("Field (Tesla), Temperature (K)?  (Doppler width He3: 1.1875 GHz @300 K)")
     B = float(input("Field (Tesla): "))
     Temp = float(input("Temperature (K): "))
@@ -415,7 +414,7 @@ def write_transitions(filename, B, re, rf, ind_lower, ind_upper, energy_offset=0
             f.write(f"{B:10.5f} {re[i] - energy_offset:15.8e} {rf[i]:15.8e} {ind_lower[i]:3d} {ind_upper[i]:3d}\n")
 
 
-def generate_spectra(r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
+def generate_spectra(out_folder, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
                      r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4):
     """Generate Doppler-broadened spectra for both isotopes"""
     # Generate frequency axis
@@ -450,13 +449,13 @@ def generate_spectra(r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
         he4_pi += r4pif[i] * np.exp(-((freq_range - r4pie[i]) / D4) ** 2)
 
     # Write He3 spectra to file
-    with open("spHe3.dat", "w") as f:
+    with open(out_folder+"spHe3.dat", "w") as f:
         f.write(" GHz sigplus sigminus pi\n")
         for i in range(len(freq_range)):
             f.write(f"{freq_range[i] - 40:15.8f} {he3_plus[i]:15.8f} {he3_minus[i]:15.8f} {he3_pi[i]:15.8f}\n")
 
     # Write He4 spectra to file
-    with open("spHe4.dat", "w") as f:
+    with open(out_folder+"spHe4.dat", "w") as f:
         f.write(" GHz sigplus sigminus pi\n")
         for i in range(len(freq_range)):
             f.write(f"{freq_range[i]:15.8f} {he4_plus[i]:15.8f} {he4_minus[i]:15.8f} {he4_pi[i]:15.8f}\n")
@@ -483,7 +482,7 @@ def generate_spectra(r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('helium_spectra.png')
+    plt.savefig(out_folder+'helium_spectra.png')
     plt.show()
 
 
