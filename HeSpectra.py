@@ -1,5 +1,5 @@
-# Helium Spectrum Calculation at varied magnetic field based on Fortran from P.J. Nacher
-# Translation to Python, NumPy, J. Maxwell, 2025
+# Helium Spectrum Calculation with Zeeman Splitting based on Fortran from P.J. Nacher
+# Translation to Python, NumPy, J. Maxwell 2025
 
 import numpy as np
 import matplotlib.pyplot as plt
