@@ -13,6 +13,7 @@ def main():
     # Output folder
     out_folder = "output/"
 
+
     # Constants
     zero = 0.0
     epsilon = 1e-12
@@ -40,7 +41,13 @@ def main():
     aS = -6739.701177e-3 * (2.0 / 3.0)  # from Rosner70 (*2/3)
 
     # Hyperfine structure, 23P
-    # Optimal adjustment values at 1T to the full Hamiltonian (including singlet)
+
+    # CPres = -4283.84e-3    !GHz       ! all from Hinds85
+    # CprimePres = 1.004 * Cpres
+    # DPres = -28.060e-3    !GHz
+    # EPres = -DPres / 3.950    !GHz
+
+    # Nacher Optimal adjustment values at 1T to the full Hamiltonian (including singlet)
     c = -4283.026e-3  # GHz (0.019% lower than CPres)
     d = -14.507e-3  # GHz (3.4% higher than DPres/2)
     e = 1.4861e-3  # GHz (4.6% higher than EPres/5)
@@ -205,6 +212,50 @@ def main():
     D3 = 1.1875 * np.sqrt(Temp / 300)  # Doppler width for He3
     D4 = D3 * np.sqrt(3.0 / 4.0)  # Doppler width for He4
 
+    ###############################
+    # Zero-field Computation first
+    # 3He
+    H3S = Hhf3S
+    W3S, V3S = np.linalg.eigh(H3S)
+    # Sort eigenvalues and eigenvectors
+    idx = W3S.argsort()
+    W3S = W3S[idx]
+    V3S = V3S[:, idx]
+
+    H3P = H3PB0
+    W3P, V3P = np.linalg.eigh(H3P)
+    # Sort eigenvalues and eigenvectors
+    idx = W3P.argsort()
+    W3P = W3P[idx]
+    V3P = V3P[:, idx]
+
+    # 4He
+    W4S = np.zeros(3)
+    W4S[2] = mu * B * gsS
+    W4S[1] = zero
+    W4S[0] = -mu * B * gsS
+    V4S = np.zeros((3, 3))
+    V4S[0, 0] = 1.0
+    V4S[1, 1] = 1.0
+    V4S[2, 2] = 1.0
+
+    H4P = Hf4P
+    W4P, V4P = np.linalg.eigh(H4P)
+    # Sort eigenvalues and eigenvectors
+    idx = W4P.argsort()
+    W4P = W4P[idx]
+    V4P = V4P[:, idx]
+
+    eC1 = W3P[8] - W3S[5]  # Reference for energy offsets
+    eC9 = W3P[16] - W3S[2]
+
+    # He4 offset
+    eD2 = W4P[2] - W4S[1]
+    C1C9 = (W3P[16] - W3S[2]) - eC1
+    he4_offset = eD2 + D2C9 - C1C9
+
+    ###################################
+    # Now compute for chosen field
     # Calculate for He3
     H3S = Hhf3S + mu * B * Hzee3S
     W3S, V3S = np.linalg.eigh(H3S)
@@ -228,28 +279,28 @@ def main():
         for i in range(18):
             f.write(f"{W3P[i]:.8f} ")
 
+
     # Calculate transition matrix elements for He3
     T3p = calculate_sigma_plus_he3(V3S, V3P)
     T3m = calculate_sigma_minus_he3(V3S, V3P)
     T3pi = calculate_pi_he3(V3S, V3P)
 
     # Sort and store transitions for He3
-    r3pe, r3pf, indap, indbp = sort_transitions(T3p, W3P, W3S, epsilon)
-    r3me, r3mf, indam, indbm = sort_transitions(T3m, W3P, W3S, epsilon)
-    r3pie, r3pif, indapi, indbpi = sort_transitions(T3pi, W3P, W3S, epsilon)
+    r3pe, r3pf, indap, indbp = sort_transitions(T3p, W3P, W3S, epsilon, eC1)
+    r3me, r3mf, indam, indbm = sort_transitions(T3m, W3P, W3S, epsilon, eC1)
+    r3pie, r3pif, indapi, indbpi = sort_transitions(T3pi, W3P, W3S, epsilon, eC1)
 
-    eC1 = W3P[8] - W3S[5]  # Reference for energy offsets
 
     # Write transitions for He3
-    write_transitions(out_folder+"He3plus.dat", B, r3pe, r3pf, indap, indbp, eC1)
-    write_transitions(out_folder+"He3minus.dat", B, r3me, r3mf, indam, indbm, eC1)
-    write_transitions(out_folder+"He3pi.dat", B, r3pie, r3pif, indapi, indbpi, eC1)
+    write_transitions(out_folder+"He3plus.dat", B, r3pe, r3pf, indap, indbp)
+    write_transitions(out_folder+"He3minus.dat", B, r3me, r3mf, indam, indbm)
+    write_transitions(out_folder+"He3pi.dat", B, r3pie, r3pif, indapi, indbpi)
 
     # Calculate for He4
     W4S = np.zeros(3)
-    W4S[2] = mu * B * gsS  # Fixed bug from original code
+    W4S[2] = mu * B * gsS
     W4S[1] = zero
-    W4S[0] = -mu * B * gsS  # Fixed bug from original code
+    W4S[0] = -mu * B * gsS
     V4S = np.zeros((3, 3))
     V4S[0, 0] = 1.0
     V4S[1, 1] = 1.0
@@ -275,18 +326,19 @@ def main():
     T4m = calculate_sigma_minus_he4(V4S, V4P)
     T4pi = calculate_pi_he4(V4S, V4P)
 
+
     # Sort and store transitions for He4
-    r4pe, r4pf, indyp, indzp = sort_transitions(T4p, W4P, W4S, epsilon)
-    r4me, r4mf, indym, indzm = sort_transitions(T4m, W4P, W4S, epsilon)
-    r4pie, r4pif, indypi, indzpi = sort_transitions(T4pi, W4P, W4S, epsilon)
+    r4pe, r4pf, indyp, indzp = sort_transitions(T4p, W4P, W4S, epsilon, he4_offset)
+    r4me, r4mf, indym, indzm = sort_transitions(T4m, W4P, W4S, epsilon, he4_offset)
+    r4pie, r4pif, indypi, indzpi = sort_transitions(T4pi, W4P, W4S, epsilon, he4_offset)
 
     eD2 = W4P[2] - W4S[1]
     C1C9 = (W3P[16] - W3S[2]) - eC1  # C9-C1 transition energy difference
 
     # Write transitions for He4
-    write_transitions(out_folder+"He4plus.dat", B, r4pe, r4pf, indyp, indzp, eD2 + D2C9 - C1C9)
-    write_transitions(out_folder+"He4minus.dat", B, r4me, r4mf, indym, indzm, eD2 + D2C9 - C1C9)
-    write_transitions(out_folder+"He4pi.dat", B, r4pie, r4pif, indypi, indzpi, eD2 + D2C9 - C1C9)
+    write_transitions(out_folder+"He4plus.dat", B, r4pe, r4pf, indyp, indzp)
+    write_transitions(out_folder+"He4minus.dat", B, r4me, r4mf, indym, indzm)
+    write_transitions(out_folder+"He4pi.dat", B, r4pie, r4pif, indypi, indzpi)
 
     # Generate Doppler-broadened spectra
     generate_spectra(out_folder, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
@@ -376,8 +428,8 @@ def calculate_pi_he4(V4S, V4P):
     return T4pi
 
 
-def sort_transitions(T, WP, WS, epsilon):
-    """Sort transitions by energy and filter by magnitude"""
+def sort_transitions(T, WP, WS, epsilon, energy_offset=0.0):
+    """Sort transitions by energy (with offset applied) and filter by magnitude"""
     # Count transitions above epsilon threshold
     count = 0
     for j in range(T.shape[0]):
@@ -391,12 +443,12 @@ def sort_transitions(T, WP, WS, epsilon):
     ind_lower = np.zeros(count, dtype=int)
     ind_upper = np.zeros(count, dtype=int)
 
-    # Extract transitions above threshold
+    # Extract transitions above threshold and apply energy offset
     idx = 0
     for j in range(T.shape[0]):
         for i in range(T.shape[1]):
             if T[j, i] >= epsilon:
-                re[idx] = WP[j] - WS[i]
+                re[idx] = WP[j] - WS[i] - energy_offset  # Apply offset here
                 rf[idx] = T[j, i]
                 ind_lower[idx] = i
                 ind_upper[idx] = j
@@ -413,12 +465,21 @@ def write_transitions(filename, B, re, rf, ind_lower, ind_upper, energy_offset=0
         for i in range(len(re)):
             f.write(f"{B:10.5f} {re[i] - energy_offset:15.8e} {rf[i]:15.8e} {ind_lower[i]:3d} {ind_upper[i]:3d}\n")
 
-
 def generate_spectra(out_folder, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
                      r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4):
     """Generate Doppler-broadened spectra for both isotopes"""
+
+    # C1 line absolute position in GHz
+    c1_ghz = 2.766933041e+5
+
     # Generate frequency axis
     freq_range = np.arange(-200, 300.1, 0.1)
+
+    # Create absolute frequency axis for He3 (C1 reference + relative offset)
+    abs_freq_he3 = c1_ghz + freq_range - 40
+
+    # Create absolute frequency axis for He4
+    abs_freq_he4 = c1_ghz + freq_range
 
     # Initialize arrays for spectra
     he3_plus = np.zeros_like(freq_range)
@@ -448,41 +509,96 @@ def generate_spectra(out_folder, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
     for i in range(len(r4pie)):
         he4_pi += r4pif[i] * np.exp(-((freq_range - r4pie[i]) / D4) ** 2)
 
-    # Write He3 spectra to file
+    # Write He3 spectra to file with absolute frequencies
     with open(out_folder+"spHe3.dat", "w") as f:
-        f.write(" GHz sigplus sigminus pi\n")
+        f.write(" AbsFreq(GHz) RelFreq(GHz) sigplus sigminus pi wavelength(nm)\n")
         for i in range(len(freq_range)):
-            f.write(f"{freq_range[i] - 40:15.8f} {he3_plus[i]:15.8f} {he3_minus[i]:15.8f} {he3_pi[i]:15.8f}\n")
+            # Calculate wavelength in nm
+            wavelength_nm = 299792458 / abs_freq_he3[i]
+            f.write(f"{abs_freq_he3[i]:15.8f} {freq_range[i] - 40:15.8f} {he3_plus[i]:15.8f} {he3_minus[i]:15.8f} {he3_pi[i]:15.8f} {wavelength_nm:15.8f}\n")
 
-    # Write He4 spectra to file
+    # Write He4 spectra to file with absolute frequencies
     with open(out_folder+"spHe4.dat", "w") as f:
-        f.write(" GHz sigplus sigminus pi\n")
+        f.write(" AbsFreq(GHz) RelFreq(GHz) sigplus sigminus pi wavelength(nm)\n")
         for i in range(len(freq_range)):
-            f.write(f"{freq_range[i]:15.8f} {he4_plus[i]:15.8f} {he4_minus[i]:15.8f} {he4_pi[i]:15.8f}\n")
+            # Calculate wavelength in nm
+            wavelength_nm = 299792458 / abs_freq_he4[i]
+            f.write(f"{abs_freq_he4[i]:15.8f} {freq_range[i]:15.8f} {he4_plus[i]:15.8f} {he4_minus[i]:15.8f} {he4_pi[i]:15.8f} {wavelength_nm:15.8f}\n")
 
-    # Create plots of the spectra
-    plt.figure(figsize=(12, 8))
+        # Create plots of the spectra with both relative and absolute scales
+    plt.figure(figsize=(12, 12))
 
-    plt.subplot(2, 1, 1)
+    # He3 plot with relative frequencies
+    plt.subplot(2, 2, 1)
     plt.plot(freq_range - 40, he3_plus, label='σ+')
     plt.plot(freq_range - 40, he3_minus, label='σ-')
     plt.plot(freq_range - 40, he3_pi, label='π')
-    plt.title('He3 Spectra')
+    plt.title('He3 Spectra (Relative)')
     plt.xlabel('Frequency offset (GHz)')
     plt.ylabel('Intensity')
     plt.legend()
 
-    plt.subplot(2, 1, 2)
+    # He3 plot with absolute frequencies
+    plt.subplot(2, 2, 2)
+    plt.plot(abs_freq_he3, he3_plus, label='σ+')
+    plt.plot(abs_freq_he3, he3_minus, label='σ-')
+    plt.plot(abs_freq_he3, he3_pi, label='π')
+    plt.title('He3 Spectra (Absolute)')
+    plt.xlabel('Absolute Frequency (GHz)')
+    plt.ylabel('Intensity')
+    plt.legend()
+
+    # He4 plot with relative frequencies
+    plt.subplot(2, 2, 3)
     plt.plot(freq_range, he4_plus, label='σ+')
     plt.plot(freq_range, he4_minus, label='σ-')
     plt.plot(freq_range, he4_pi, label='π')
-    plt.title('He4 Spectra')
-    plt.xlabel('Frequency (GHz)')
+    plt.title('He4 Spectra (Relative)')
+    plt.xlabel('Frequency offset (GHz)')
+    plt.ylabel('Intensity')
+    plt.legend()
+
+    # He4 plot with absolute frequencies
+    plt.subplot(2, 2, 4)
+    plt.plot(abs_freq_he4, he4_plus, label='σ+')
+    plt.plot(abs_freq_he4, he4_minus, label='σ-')
+    plt.plot(abs_freq_he4, he4_pi, label='π')
+    plt.title('He4 Spectra (Absolute)')
+    plt.xlabel('Absolute Frequency (GHz)')
     plt.ylabel('Intensity')
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig(out_folder+'helium_spectra.png')
+    plt.savefig(out_folder + 'helium_spectra.png')
+
+    # Create another plot with wavelength on x-axis
+    plt.figure(figsize=(12, 6))
+
+    # Convert frequency to wavelength (nm)
+    wavelength_he3 = 299792458. / abs_freq_he3
+    wavelength_he4 = 299792458. / abs_freq_he4
+
+    plt.subplot(1, 2, 1)
+    plt.plot(wavelength_he3, he3_plus, label='σ+')
+    plt.plot(wavelength_he3, he3_minus, label='σ-')
+    plt.plot(wavelength_he3, he3_pi, label='π')
+    plt.title('He3 Spectra (Wavelength)')
+    plt.xlabel('Wavelength (nm)')
+    plt.ylabel('Intensity')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(wavelength_he4, he4_plus, label='σ+')
+    plt.plot(wavelength_he4, he4_minus, label='σ-')
+    plt.plot(wavelength_he4, he4_pi, label='π')
+    plt.title('He4 Spectra (Wavelength)')
+    plt.xlabel('Wavelength (nm)')
+    plt.ylabel('Intensity')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig(out_folder + 'helium_spectra_wavelength.png')
+
     plt.show()
 
 
