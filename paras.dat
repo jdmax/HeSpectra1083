@@ -1,0 +1,8 @@
+4.0 		! B field value (T)
+1.3333		! pressure (mbar)
+1e-3       ! incident laser power in cell (W)
+11.2838		! laser beam diameter (mm) : 11.2838 for 1cm²
+-95.02		! laser frequency (GHz)- probe sig. minus at 4T: -95.02 and -99.357 
+25.		    ! cell internal diameter (mm)
+5.     	! cell internal length (cm)
+1.e10	    ! metastable density (at/cc)
