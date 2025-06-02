@@ -568,7 +568,7 @@ def main():
         st.session_state.temp_value = 300
 
     # Title and description
-    st.title("🔬 Interactive Helium Spectra Calculator")
+    st.title("Helium Spectra Calculator")
     st.markdown("""
     Calculate and visualize helium spectra with Zeeman splitting for ³He and ⁴He isotopes.
     Adjust magnetic field and temperature to see real-time changes in the spectra.
