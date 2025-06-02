@@ -1,6 +1,6 @@
 # Helium Spectrum Calculation with Zeeman Splitting based on Fortran from P.J. Nacher
 # Translation to Python, NumPy, J. Maxwell 2025
-# Interactive version with real-time B field control
+# Interactive version with real-time control
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -472,17 +472,17 @@ class InteractiveSpectraPlotter:
         self.current_B = 1.0  # Default B field
         self.current_isotope = 'He3'  # Default isotope
         self.current_x_axis = 'frequency'  # Default x-axis type
-        self.temp = 300  # Fixed temperature for now
+        self.current_temp = 300  # Default temperature
 
         # Initialize plot
         self.setup_plot()
 
     def setup_plot(self):
         """Setup the interactive plot with controls"""
-        self.fig = plt.figure(figsize=(14, 8))
+        self.fig = plt.figure(figsize=(14, 10))
 
         # Create grid layout
-        gs = gridspec.GridSpec(3, 4, figure=self.fig,
+        gs = gridspec.GridSpec(4, 4, figure=self.fig,
                                left=0.1, right=0.75, bottom=0.25, top=0.9,
                                hspace=0.3, wspace=0.3)
 
@@ -490,7 +490,7 @@ class InteractiveSpectraPlotter:
         self.ax = self.fig.add_subplot(gs[:, :3])
 
         # Control area
-        controls_gs = gridspec.GridSpecFromSubplotSpec(3, 1, gs[:, 3], hspace=0.4)
+        controls_gs = gridspec.GridSpecFromSubplotSpec(4, 1, gs[:, 3], hspace=0.4)
 
         # Slider for B field
         slider_ax = self.fig.add_subplot(controls_gs[0, 0])
@@ -499,22 +499,30 @@ class InteractiveSpectraPlotter:
             valinit=self.current_B, valstep=0.01
         )
 
+        # Slider for Temperature
+        temp_ax = self.fig.add_subplot(controls_gs[1, 0])
+        self.temp_slider = Slider(
+            temp_ax, 'T (K)', 77, 1000,
+            valinit=self.current_temp, valstep=1
+        )
+
         # Radio buttons for isotope selection
-        isotope_ax = self.fig.add_subplot(controls_gs[1, 0])
+        isotope_ax = self.fig.add_subplot(controls_gs[2, 0])
         self.isotope_radio = RadioButtons(
             isotope_ax, ('He3', 'He4'), active=0
         )
         isotope_ax.set_title('Isotope', fontweight='bold')
 
         # Radio buttons for x-axis type
-        xaxis_ax = self.fig.add_subplot(controls_gs[2, 0])
+        xaxis_ax = self.fig.add_subplot(controls_gs[3, 0])
         self.xaxis_radio = RadioButtons(
-            xaxis_ax, ('frequency', 'wavelength'), active=0
+            xaxis_ax, ('Frequency', 'Wavelength'), active=0
         )
         xaxis_ax.set_title('X-axis', fontweight='bold')
 
         # Connect event handlers
         self.B_slider.on_changed(self.update_B_field)
+        self.temp_slider.on_changed(self.update_temperature)
         self.isotope_radio.on_clicked(self.update_isotope)
         self.xaxis_radio.on_clicked(self.update_xaxis)
 
@@ -524,6 +532,11 @@ class InteractiveSpectraPlotter:
     def update_B_field(self, val):
         """Update B field value and replot"""
         self.current_B = val
+        self.update_plot()
+
+    def update_temperature(self, val):
+        """Update temperature value and replot"""
+        self.current_temp = val
         self.update_plot()
 
     def update_isotope(self, label):
@@ -539,7 +552,7 @@ class InteractiveSpectraPlotter:
     def update_plot(self):
         """Update the main plot with current parameters"""
         # Calculate spectra
-        spectra_data = self.calculator.calculate_spectra(self.current_B, self.temp)
+        spectra_data = self.calculator.calculate_spectra(self.current_B, self.current_temp)
 
         # Clear previous plot
         self.ax.clear()
@@ -574,8 +587,9 @@ class InteractiveSpectraPlotter:
         # Formatting
         self.ax.set_xlabel(x_label, fontsize=12)
         self.ax.set_ylabel('Intensity', fontsize=12)
-        self.ax.set_title(f'{self.current_isotope} Spectra at B = {self.current_B:.2f} T',
-                          fontsize=14, fontweight='bold')
+        self.ax.set_title(
+            f'{self.current_isotope} Spectra at B = {self.current_B:.2f} T, T = {self.current_temp:.0f} K',
+            fontsize=14, fontweight='bold')
         self.ax.legend()
         self.ax.grid(True, alpha=0.3)
 
