@@ -4,15 +4,13 @@ Helium Spectrum Calculation with Zeeman Splitting based on Fortran from P.J. Nac
 Translation to Python, NumPy, J. Maxwell 2025
 Interactive Helium Spectra Calculator - Streamlit Version
 
-Need to install: "pip install streamlit plotly numpy matplotlib"
+Need to install: "pip install streamlit plotly numpy"
 To run: "streamlit run HeSpectra_Streamlit.py"
 """
 
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 
 class HeliumSpectraCalculator:
