@@ -550,6 +550,19 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
     return fig
 
 
+# Callback functions for synchronization
+def sync_b_field():
+    """Synchronize B field between slider and input"""
+    # This function is called when either B field widget changes
+    pass
+
+
+def sync_temperature():
+    """Synchronize temperature between slider and input"""
+    # This function is called when either temperature widget changes
+    pass
+
+
 def main():
     """Main Streamlit application"""
 
@@ -577,7 +590,7 @@ def main():
     # Sidebar controls
     st.sidebar.header("Parameters")
 
-    # Magnetic field controls
+    # Magnetic field controls with synchronization
     st.sidebar.subheader("Magnetic Field")
     col1, col2 = st.sidebar.columns(2)
 
@@ -588,7 +601,8 @@ def main():
             max_value=10.0,
             value=st.session_state.b_field_value,
             step=0.01,
-            key="b_slider"
+            key="b_slider",
+            on_change=sync_b_field
         )
 
     with col2:
@@ -599,18 +613,23 @@ def main():
             value=st.session_state.b_field_value,
             step=0.01,
             format="%.3f",
-            key="b_input"
+            key="b_input",
+            on_change=sync_b_field
         )
 
-    # Update session state based on widget changes
-    if B_field_slider != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_slider
-    if B_field_input != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_input
+    # Synchronization logic for B field
+    if st.session_state.b_slider != st.session_state.b_field_value:
+        st.session_state.b_field_value = st.session_state.b_slider
+        st.session_state.b_input = st.session_state.b_slider
+        st.rerun()
+    elif st.session_state.b_input != st.session_state.b_field_value:
+        st.session_state.b_field_value = st.session_state.b_input
+        st.session_state.b_slider = st.session_state.b_input
+        st.rerun()
 
     B_field = st.session_state.b_field_value
 
-    # Temperature controls
+    # Temperature controls with synchronization
     st.sidebar.subheader("Temperature")
     col3, col4 = st.sidebar.columns(2)
 
@@ -621,7 +640,8 @@ def main():
             max_value=1000,
             value=st.session_state.temp_value,
             step=1,
-            key="temp_slider"
+            key="temp_slider",
+            on_change=sync_temperature
         )
 
     with col4:
@@ -632,14 +652,19 @@ def main():
             value=st.session_state.temp_value,
             step=1,
             format="%d",
-            key="temp_input"
+            key="temp_input",
+            on_change=sync_temperature
         )
 
-    # Update session state based on widget changes
-    if temp_slider != st.session_state.temp_value:
-        st.session_state.temp_value = temp_slider
-    if temp_input != st.session_state.temp_value:
-        st.session_state.temp_value = temp_input
+    # Synchronization logic for temperature
+    if st.session_state.temp_slider != st.session_state.temp_value:
+        st.session_state.temp_value = st.session_state.temp_slider
+        st.session_state.temp_input = st.session_state.temp_slider
+        st.rerun()
+    elif st.session_state.temp_input != st.session_state.temp_value:
+        st.session_state.temp_value = st.session_state.temp_input
+        st.session_state.temp_slider = st.session_state.temp_input
+        st.rerun()
 
     temperature = st.session_state.temp_value
 
@@ -703,28 +728,40 @@ def main():
         # Preset buttons
         if st.button("🧊 Liquid Nitrogen (77K)"):
             st.session_state.temp_value = 77
+            st.session_state.temp_slider = 77
+            st.session_state.temp_input = 77
             st.rerun()
 
         if st.button("🏠 Room Temperature (300K)"):
             st.session_state.temp_value = 300
+            st.session_state.temp_slider = 300
+            st.session_state.temp_input = 300
             st.rerun()
 
         if st.button("🔥 High Temperature (800K)"):
             st.session_state.temp_value = 800
+            st.session_state.temp_slider = 800
+            st.session_state.temp_input = 800
             st.rerun()
 
         st.markdown("---")
 
         if st.button("⚡ Low Field (0.1T)"):
             st.session_state.b_field_value = 0.1
+            st.session_state.b_slider = 0.1
+            st.session_state.b_input = 0.1
             st.rerun()
 
         if st.button("🧲 High Field (1T)"):
             st.session_state.b_field_value = 1.0
+            st.session_state.b_slider = 1.0
+            st.session_state.b_input = 1.0
             st.rerun()
 
         if st.button("🚀 Higher Field (5T)"):
             st.session_state.b_field_value = 5.0
+            st.session_state.b_slider = 5.0
+            st.session_state.b_input = 5.0
             st.rerun()
 
         st.markdown("---")
