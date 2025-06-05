@@ -566,9 +566,9 @@ def main():
         st.session_state.temp_value = 300
 
     # Title and description
-    st.title("Helium Spectra Calculator")
+    st.title("Helium 1083 nm Line Calculator")
     st.markdown("""
-    Calculate and visualize helium spectra with Zeeman splitting for ³He and ⁴He isotopes.
+    Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
     Adjust magnetic field and temperature to see real-time changes in the spectra.
     """)
 
@@ -583,7 +583,7 @@ def main():
         B_field_slider = st.slider(
             "B Field (T)",
             min_value=0.01,
-            max_value=10.0,
+            max_value=7.0,
             value=st.session_state.b_field_value,
             step=0.01,
             key="b_slider"
@@ -729,21 +729,11 @@ def main():
             st.session_state.b_field_value = 5.0
             st.rerun()
 
-        st.markdown("---")
-
-        # Display calculated Doppler widths
-        D3 = 1.1875 * np.sqrt(temperature / 300)
-        D4 = D3 * np.sqrt(3.0 / 4.0)
-
-        st.markdown("**Doppler Widths:**")
-        st.markdown(f"He3: {D3:.3f} GHz")
-        st.markdown(f"He4: {D4:.3f} GHz")
-
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: gray; font-size: 12px;'>
-    Based on original Fortran code by P.J. Nacher | Python translation by J. Maxwell 2025
+    Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
     </div>
     """, unsafe_allow_html=True)
 
