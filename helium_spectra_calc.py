@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """
-Helium Spectrum Calculation with Zeeman Splitting based on Fortran from P.J. Nacher
-Translation to Python, NumPy, J. Maxwell 2025
-Interactive Helium Spectra Calculator - Streamlit Version
+Helium Spectrum Calculation Module
+Based on Fortran code by P.J. Nacher
+Python translation by J. Maxwell 2025
 
-Need to install: "pip install streamlit plotly numpy"
-To run: "streamlit run HeSpectra_Streamlit.py"
+This module contains the calculation logic for helium spectra with Zeeman splitting.
 """
 
-import streamlit as st
 import numpy as np
-import plotly.graph_objects as go
 
 
 class HeliumSpectraCalculator:
@@ -229,43 +226,51 @@ class HeliumSpectraCalculator:
             self.Hzee3P[i + 9, i + 9] = self.Hzee3P[i, i] - self.gi / 2.0  # assign second block
             self.Hzee3P[i, i] = self.Hzee3P[i, i] + self.gi / 2.0  # modify first block
 
-    def calculate_spectra(self, B, Temp=300):
-        """Calculate spectra for given magnetic field and temperature"""
+    def calculate_full_results(self, B, Temp=300):
+        """
+        Calculate complete results including all intermediate values needed for file output.
+
+        Returns a dictionary with:
+        - spectra_data: Doppler-broadened spectra
+        - energy_levels: All energy eigenvalues (W3S, W3P, W4S, W4P)
+        - transitions: All transition data (energies, forces, indices)
+        - doppler_widths: D3 and D4
+        """
         D3 = 1.1875 * np.sqrt(Temp / 300)  # Doppler width for He3
         D4 = D3 * np.sqrt(3.0 / 4.0)  # Doppler width for He4
 
         # Zero-field computation first for energy references
         H3S = self.Hhf3S
-        W3S, V3S = np.linalg.eigh(H3S)
-        idx = W3S.argsort()
-        W3S = W3S[idx]
-        V3S = V3S[:, idx]
+        W3S_zero, V3S_zero = np.linalg.eigh(H3S)
+        idx = W3S_zero.argsort()
+        W3S_zero = W3S_zero[idx]
+        V3S_zero = V3S_zero[:, idx]
 
         H3P = self.H3PB0
-        W3P, V3P = np.linalg.eigh(H3P)
-        idx = W3P.argsort()
-        W3P = W3P[idx]
-        V3P = V3P[:, idx]
+        W3P_zero, V3P_zero = np.linalg.eigh(H3P)
+        idx = W3P_zero.argsort()
+        W3P_zero = W3P_zero[idx]
+        V3P_zero = V3P_zero[:, idx]
 
         # He4 zero field
-        W4S = np.zeros(3)
-        W4S[2] = self.mu * B * self.gsS
-        W4S[1] = self.zero
-        W4S[0] = -self.mu * B * self.gsS
-        V4S = np.eye(3)
+        W4S_zero = np.zeros(3)
+        W4S_zero[2] = self.mu * B * self.gsS
+        W4S_zero[1] = self.zero
+        W4S_zero[0] = -self.mu * B * self.gsS
+        V4S_zero = np.eye(3)
 
         H4P = self.Hf4P
-        W4P, V4P = np.linalg.eigh(H4P)
-        idx = W4P.argsort()
-        W4P = W4P[idx]
-        V4P = V4P[:, idx]
+        W4P_zero, V4P_zero = np.linalg.eigh(H4P)
+        idx = W4P_zero.argsort()
+        W4P_zero = W4P_zero[idx]
+        V4P_zero = V4P_zero[:, idx]
 
-        eC1 = W3P[8] - W3S[5]  # Reference for energy offsets
-        eC9 = W3P[16] - W3S[2]
+        eC1 = W3P_zero[8] - W3S_zero[5]  # Reference for energy offsets
+        eC9 = W3P_zero[16] - W3S_zero[2]
 
         # He4 offset
-        eD2 = W4P[2] - W4S[1]
-        C1C9 = (W3P[16] - W3S[2]) - eC1
+        eD2 = W4P_zero[2] - W4S_zero[1]
+        C1C9 = (W3P_zero[16] - W3S_zero[2]) - eC1
         he4_offset = eD2 + self.D2C9 - C1C9
 
         # Now compute for chosen field
@@ -288,9 +293,9 @@ class HeliumSpectraCalculator:
         T3pi = self.calculate_pi_he3(V3S, V3P)
 
         # Sort and store transitions for He3
-        r3pe, r3pf, _, _ = self.sort_transitions(T3p, W3P, W3S, self.epsilon, eC1)
-        r3me, r3mf, _, _ = self.sort_transitions(T3m, W3P, W3S, self.epsilon, eC1)
-        r3pie, r3pif, _, _ = self.sort_transitions(T3pi, W3P, W3S, self.epsilon, eC1)
+        r3pe, r3pf, indap, indbp = self.sort_transitions(T3p, W3P, W3S, self.epsilon, eC1)
+        r3me, r3mf, indam, indbm = self.sort_transitions(T3m, W3P, W3S, self.epsilon, eC1)
+        r3pie, r3pif, indapi, indbpi = self.sort_transitions(T3pi, W3P, W3S, self.epsilon, eC1)
 
         # Calculate for He4
         W4S = np.zeros(3)
@@ -311,9 +316,9 @@ class HeliumSpectraCalculator:
         T4pi = self.calculate_pi_he4(V4S, V4P)
 
         # Sort and store transitions for He4
-        r4pe, r4pf, _, _ = self.sort_transitions(T4p, W4P, W4S, self.epsilon, he4_offset)
-        r4me, r4mf, _, _ = self.sort_transitions(T4m, W4P, W4S, self.epsilon, he4_offset)
-        r4pie, r4pif, _, _ = self.sort_transitions(T4pi, W4P, W4S, self.epsilon, he4_offset)
+        r4pe, r4pf, indyp, indzp = self.sort_transitions(T4p, W4P, W4S, self.epsilon, he4_offset)
+        r4me, r4mf, indym, indzm = self.sort_transitions(T4m, W4P, W4S, self.epsilon, he4_offset)
+        r4pie, r4pif, indypi, indzpi = self.sort_transitions(T4pi, W4P, W4S, self.epsilon, he4_offset)
 
         # Generate Doppler-broadened spectra
         spectra_data = self.generate_spectra_data(
@@ -321,7 +326,38 @@ class HeliumSpectraCalculator:
             r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4
         )
 
-        return spectra_data
+        # Return comprehensive results
+        return {
+            'spectra_data': spectra_data,
+            'energy_levels': {
+                'W3S': W3S,
+                'W3P': W3P,
+                'W4S': W4S,
+                'W4P': W4P
+            },
+            'transitions': {
+                'he3': {
+                    'plus': {'energies': r3pe, 'forces': r3pf, 'ind_lower': indap, 'ind_upper': indbp},
+                    'minus': {'energies': r3me, 'forces': r3mf, 'ind_lower': indam, 'ind_upper': indbm},
+                    'pi': {'energies': r3pie, 'forces': r3pif, 'ind_lower': indapi, 'ind_upper': indbpi}
+                },
+                'he4': {
+                    'plus': {'energies': r4pe, 'forces': r4pf, 'ind_lower': indyp, 'ind_upper': indzp},
+                    'minus': {'energies': r4me, 'forces': r4mf, 'ind_lower': indym, 'ind_upper': indzm},
+                    'pi': {'energies': r4pie, 'forces': r4pif, 'ind_lower': indypi, 'ind_upper': indzpi}
+                }
+            },
+            'doppler_widths': {'D3': D3, 'D4': D4},
+            'energy_offsets': {'eC1': eC1, 'he4_offset': he4_offset}
+        }
+
+    def calculate_spectra(self, B, Temp=300):
+        """
+        Calculate only the Doppler-broadened spectra (for backward compatibility).
+        For full results including energy levels and transitions, use calculate_full_results().
+        """
+        full_results = self.calculate_full_results(B, Temp)
+        return full_results['spectra_data']
 
     def calculate_sigma_plus_he3(self, V3S, V3P):
         """Calculate sigma+ transition matrix elements for He3"""
@@ -467,291 +503,3 @@ class HeliumSpectraCalculator:
             'he4_minus': he4_minus,
             'he4_pi': he4_pi
         }
-
-
-@st.cache_data
-def get_calculator():
-    """Cached calculator instance for better performance"""
-    return HeliumSpectraCalculator()
-
-
-def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperature):
-    """Create a plotly figure for the spectra"""
-
-    # Choose data based on isotope
-    if isotope == 'He3':
-        freq_range = spectra_data['freq_range'] - 40  # He3 offset
-        abs_freq = spectra_data['abs_freq_he3']
-        plus_data = spectra_data['he3_plus']
-        minus_data = spectra_data['he3_minus']
-        pi_data = spectra_data['he3_pi']
-    else:  # He4
-        freq_range = spectra_data['freq_range']
-        abs_freq = spectra_data['abs_freq_he4']
-        plus_data = spectra_data['he4_plus']
-        minus_data = spectra_data['he4_minus']
-        pi_data = spectra_data['he4_pi']
-
-    # Choose x-axis data
-    if x_axis_type == 'Frequency Offset':
-        x_data = freq_range
-        x_label = 'Frequency Offset (GHz)'
-    else:  # Wavelength
-        x_data = 299792458.0 / abs_freq  # Convert to wavelength in nm
-        x_label = 'Wavelength (nm)'
-
-    # Create plotly figure
-    fig = go.Figure()
-
-    # Add traces for each polarization
-    fig.add_trace(go.Scatter(
-        x=x_data, y=plus_data,
-        mode='lines',
-        name='σ+',
-        line=dict(color='blue', width=2)
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=x_data, y=minus_data,
-        mode='lines',
-        name='σ-',
-        line=dict(color='red', width=2)
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=x_data, y=pi_data,
-        mode='lines',
-        name='π',
-        line=dict(color='green', width=2)
-    ))
-
-    # Update layout
-    fig.update_layout(
-        title=f'{isotope} Spectra at B = {B_field:.2f} T, T = {temperature:.0f} K',
-        xaxis_title=x_label,
-        yaxis_title='Intensity',
-        template='plotly_white',
-        height=600,
-        showlegend=True,
-        legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01
-        )
-    )
-
-    # Add grid
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-
-    return fig
-
-
-def main():
-    """Main Streamlit application"""
-
-    # Set page configuration
-    st.set_page_config(
-        page_title="Helium Spectra Calculator",
-        page_icon="🔬",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-    # Initialize session state variables
-    if 'b_field_value' not in st.session_state:
-        st.session_state.b_field_value = 1.0
-    if 'temp_value' not in st.session_state:
-        st.session_state.temp_value = 300
-    if 'isotope' not in st.session_state:
-        st.session_state.isotope = 'He3'
-    if 'x_axis_type' not in st.session_state:
-        st.session_state.x_axis_type = 'Frequency Offset'
-
-    # Title and description
-    st.title("Helium 1083 nm Line Calculator")
-    st.markdown("""
-    Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
-    Adjust magnetic field and temperature to see real-time changes in the spectra. These spectra only apply up to a few mbar, above which there are additional corrections not included here. 
-    """)
-
-    # Sidebar controls
-    st.sidebar.header("Parameters")
-
-    # Magnetic field controls with synchronization
-    st.sidebar.subheader("Magnetic Field")
-    col1, col2 = st.sidebar.columns(2)
-
-    with col1:
-        B_field_slider = st.slider(
-            "B Field (T)",
-            min_value=0.01,
-            max_value=7.0,
-            value=st.session_state.b_field_value,
-            step=0.01,
-            key="b_slider"
-        )
-
-    with col2:
-        B_field_input = st.number_input(
-            "Exact B (T)",
-            min_value=0.01,
-            max_value=10.0,
-            value=st.session_state.b_field_value,
-            step=0.01,
-            format="%.3f",
-            key="b_input"
-        )
-
-    # Synchronization logic for B field
-    if B_field_slider != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_slider
-        st.rerun()
-    elif B_field_input != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_input
-        st.rerun()
-
-    B_field = st.session_state.b_field_value
-
-    # Temperature controls with synchronization
-    st.sidebar.subheader("Temperature")
-    col3, col4 = st.sidebar.columns(2)
-
-    with col3:
-        temp_slider = st.slider(
-            "Temperature (K)",
-            min_value=77,
-            max_value=1000,
-            value=st.session_state.temp_value,
-            step=1,
-            key="temp_slider"
-        )
-
-    with col4:
-        temp_input = st.number_input(
-            "Exact T (K)",
-            min_value=77,
-            max_value=1000,
-            value=st.session_state.temp_value,
-            step=1,
-            format="%d",
-            key="temp_input"
-        )
-
-    # Synchronization logic for temperature
-    if temp_slider != st.session_state.temp_value:
-        st.session_state.temp_value = temp_slider
-        st.rerun()
-    elif temp_input != st.session_state.temp_value:
-        st.session_state.temp_value = temp_input
-        st.rerun()
-
-    temperature = st.session_state.temp_value
-
-    # Other controls
-    st.sidebar.subheader("Display Options")
-    isotope = st.sidebar.radio(
-        "Isotope",
-        ["He3", "He4"],
-        index=0 if st.session_state.isotope == 'He3' else 1,
-        key="isotope_radio"
-    )
-
-    # Update session state if isotope changed
-    if isotope != st.session_state.isotope:
-        st.session_state.isotope = isotope
-
-    x_axis_type = st.sidebar.radio(
-        "X-axis",
-        ["Frequency Offset", "Wavelength"],
-        index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1,
-        key="x_axis_radio"
-    )
-
-    # Update session state if x_axis_type changed
-    if x_axis_type != st.session_state.x_axis_type:
-        st.session_state.x_axis_type = x_axis_type
-
-    # Add some spacing
-    st.sidebar.markdown("---")
-
-    # Information panel
-    with st.sidebar.expander("ℹ️ Information"):
-        st.markdown("""
-        **Parameters:**
-        - **B Field**: 0.01 - 10.0 Tesla
-        - **Temperature**: 77 - 1000 Kelvin
-        - **Doppler Width**: ∝ √(T/300)
-
-        **Polarizations:**
-        - **σ+**: Right circular polarization
-        - **σ-**: Left circular polarization  
-        - **π**: Linear polarization
-
-        **Physics:**
-        - Zeeman splitting in magnetic field
-        - Hyperfine structure included
-        - Doppler broadening from temperature
-        """)
-
-    # Main content area
-    col_main, col_info = st.columns([3, 1])
-
-    with col_main:
-        # Show current parameters
-        st.markdown(f"""
-        **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
-        """)
-
-        # Calculate and display spectra
-        with st.spinner('Calculating spectra...'):
-            calculator = get_calculator()
-            spectra_data = calculator.calculate_spectra(B_field, temperature)
-
-            # Create and display plot
-            fig = create_plotly_figure(spectra_data, st.session_state.isotope, st.session_state.x_axis_type, B_field,
-                                       temperature)
-            st.plotly_chart(fig, use_container_width=True)
-
-    with col_info:
-        st.subheader("Quick Settings")
-
-        # Preset buttons
-        if st.button("🧊 Liquid Nitrogen (77K)"):
-            st.session_state.temp_value = 77
-            st.rerun()
-
-        if st.button("🏠 Room Temperature (300K)"):
-            st.session_state.temp_value = 300
-            st.rerun()
-
-        if st.button("🔥 High Temperature (800K)"):
-            st.session_state.temp_value = 800
-            st.rerun()
-
-        st.markdown("---")
-
-        if st.button("⚡ Low Field (0.01T)"):
-            st.session_state.b_field_value = 0.01
-            st.rerun()
-
-        if st.button("🧲 High Field (1T)"):
-            st.session_state.b_field_value = 1.0
-            st.rerun()
-
-        if st.button("🚀 Higher Field (5T)"):
-            st.session_state.b_field_value = 5.0
-            st.rerun()
-
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: gray; font-size: 12px;'>
-    Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
-    </div>
-    """, unsafe_allow_html=True)
-
-
-if __name__ == "__main__":
-    main()
