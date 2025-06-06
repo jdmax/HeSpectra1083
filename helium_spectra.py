@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 Helium Spectrum Command-line Interface
-Produces the same output files as the original HeSpectra.py
-Uses the helium_spectra_calc module for all calculations
 """
 
 import numpy as np
