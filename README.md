@@ -5,7 +5,7 @@ Helium Spectrum Calculation Near 1083 nm with Zeeman Splitting, Doppler Broadeni
 
 
 ## Author
-Written in 2025 by J. Maxwell (https://orcid.org/0000-0003-2710-4646).
+Written in 2025 by [J. Maxwell](https://orcid.org/0000-0003-2710-4646), based on Fortran by P.J. Nacher.
 
 <a id="1">[1]</a> 
 E. Courtade et. al.  "Magnetic field effects on the 1 083 nm atomic line of helium"
