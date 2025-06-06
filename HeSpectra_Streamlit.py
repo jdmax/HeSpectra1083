@@ -564,6 +564,10 @@ def main():
         st.session_state.b_field_value = 1.0
     if 'temp_value' not in st.session_state:
         st.session_state.temp_value = 300
+    if 'isotope' not in st.session_state:
+        st.session_state.isotope = 'He3'
+    if 'x_axis_type' not in st.session_state:
+        st.session_state.x_axis_type = 'Frequency Offset'
 
     # Title and description
     st.title("Helium 1083 nm Line Calculator")
@@ -650,14 +654,24 @@ def main():
     isotope = st.sidebar.radio(
         "Isotope",
         ["He3", "He4"],
-        index=0
+        index=0 if st.session_state.isotope == 'He3' else 1,
+        key="isotope_radio"
     )
+
+    # Update session state if isotope changed
+    if isotope != st.session_state.isotope:
+        st.session_state.isotope = isotope
 
     x_axis_type = st.sidebar.radio(
         "X-axis",
         ["Frequency Offset", "Wavelength"],
-        index=0
+        index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1,
+        key="x_axis_radio"
     )
+
+    # Update session state if x_axis_type changed
+    if x_axis_type != st.session_state.x_axis_type:
+        st.session_state.x_axis_type = x_axis_type
 
     # Add some spacing
     st.sidebar.markdown("---")
@@ -687,7 +701,7 @@ def main():
     with col_main:
         # Show current parameters
         st.markdown(f"""
-        **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {isotope}
+        **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
         """)
 
         # Calculate and display spectra
@@ -696,7 +710,8 @@ def main():
             spectra_data = calculator.calculate_spectra(B_field, temperature)
 
             # Create and display plot
-            fig = create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperature)
+            fig = create_plotly_figure(spectra_data, st.session_state.isotope, st.session_state.x_axis_type, B_field,
+                                       temperature)
             st.plotly_chart(fig, use_container_width=True)
 
     with col_info:
@@ -717,8 +732,8 @@ def main():
 
         st.markdown("---")
 
-        if st.button("⚡ Low Field (0.1T)"):
-            st.session_state.b_field_value = 0.1
+        if st.button("⚡ Low Field (0.01T)"):
+            st.session_state.b_field_value = 0.01
             st.rerun()
 
         if st.button("🧲 High Field (1T)"):
