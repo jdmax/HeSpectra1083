@@ -1,4 +1,4 @@
-# HeSpectra 
+# 1083 nm HeSpectra 
 
 Helium Spectrum Calculation Near 1083 nm with Zeeman Splitting, Doppler Broadening based on Fortran code by P.J. Nacher[[1]](#1) , [LKB, ENS Paris.](https://www.lkb.fr/polarisedhelium/)
 
