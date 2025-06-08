@@ -245,7 +245,7 @@ def main():
     st.title("Helium 1083 nm Line Calculator")
     st.markdown("""
     Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
-    Adjust magnetic field and temperature to see real-time changes in the spectra.
+    Adjust magnetic field and temperature to see real-time changes in the spectra. Accurate only at gas pressure up to a few mbar, above which additional corrections are needed.
     """)
 
     # Sidebar controls
