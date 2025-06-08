@@ -3,12 +3,14 @@
 Helium Spectrum Calculator - Streamlit UI
 Interactive interface for helium spectra calculations
 
-Need to install: "pip install streamlit plotly numpy"
+Need to install: "pip install streamlit plotly numpy pandas"
 To run: "streamlit run helium_spectra_ui.py"
 """
 
 import streamlit as st
 import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
 from helium_spectra_calc import HeliumSpectraCalculator
 
 
@@ -18,7 +20,113 @@ def get_calculator():
     return HeliumSpectraCalculator()
 
 
-def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperature):
+def group_transitions(energies, forces, ind_lower, ind_upper, threshold=2.0):
+    """Group transitions that are within threshold GHz of each other"""
+    if len(energies) == 0:
+        return []
+
+    # Sort by energy
+    sorted_indices = np.argsort(energies)
+    sorted_energies = energies[sorted_indices]
+    sorted_forces = forces[sorted_indices]
+    sorted_ind_lower = ind_lower[sorted_indices]
+    sorted_ind_upper = ind_upper[sorted_indices]
+
+    groups = []
+    current_group = {
+        'energies': [sorted_energies[0]],
+        'forces': [sorted_forces[0]],
+        'ind_lower': [sorted_ind_lower[0]],
+        'ind_upper': [sorted_ind_upper[0]]
+    }
+
+    for i in range(1, len(sorted_energies)):
+        if sorted_energies[i] - current_group['energies'][-1] <= threshold:
+            # Add to current group
+            current_group['energies'].append(sorted_energies[i])
+            current_group['forces'].append(sorted_forces[i])
+            current_group['ind_lower'].append(sorted_ind_lower[i])
+            current_group['ind_upper'].append(sorted_ind_upper[i])
+        else:
+            # Start new group
+            groups.append(current_group)
+            current_group = {
+                'energies': [sorted_energies[i]],
+                'forces': [sorted_forces[i]],
+                'ind_lower': [sorted_ind_lower[i]],
+                'ind_upper': [sorted_ind_upper[i]]
+            }
+
+    # Don't forget the last group
+    groups.append(current_group)
+
+    return groups
+
+
+def format_transition_name(ind_lower, ind_upper, isotope):
+    """Format transition name based on isotope and indices"""
+    if isotope == 'He3':
+        return f"A_{ind_lower} → B_{ind_upper}"
+    else:  # He4
+        return f"Y_{ind_lower} → Z_{ind_upper}"
+
+
+def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
+    """Create a DataFrame with grouped transitions"""
+    all_groups = []
+
+    for pol_name, pol_data in [('σ+', transitions['plus']),
+                               ('σ-', transitions['minus']),
+                               ('π', transitions['pi'])]:
+        groups = group_transitions(
+            pol_data['energies'],
+            pol_data['forces'],
+            pol_data['ind_lower'],
+            pol_data['ind_upper']
+        )
+
+        for group in groups:
+            # Calculate average values
+            avg_energy = np.mean(group['energies'])
+            total_intensity = np.sum(group['forces'])
+
+            # Calculate absolute frequency and wavelength
+            if isotope == 'He3':
+                abs_freq = c1_ghz + avg_energy
+            else:  # He4
+                abs_freq = c1_ghz + avg_energy
+
+            avg_wavelength = 299792458.0 / abs_freq  # nm
+
+            # Format transition names
+            transition_names = []
+            for i in range(len(group['ind_lower'])):
+                name = format_transition_name(
+                    group['ind_lower'][i],
+                    group['ind_upper'][i],
+                    isotope
+                )
+                transition_names.append(name)
+
+            all_groups.append({
+                'Polarization': pol_name,
+                'Average Relative Frequency (GHz)': f"{avg_energy:.3f}",
+                'Average Wavelength (nm)': f"{avg_wavelength:.6f}",
+                'Transitions in Group': ', '.join(transition_names),
+                'Group Intensity': f"{total_intensity:.4f}",
+                '_intensity_value': total_intensity  # Keep numeric value for sorting
+            })
+
+    # Create DataFrame and sort by intensity (descending)
+    df = pd.DataFrame(all_groups)
+    df = df.sort_values('_intensity_value', ascending=False)
+    df = df.drop('_intensity_value', axis=1)  # Remove the helper column
+
+    return df
+
+
+def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperature, selected_frequency=None,
+                         selected_wavelength=None):
     """Create a plotly figure for the spectra"""
 
     # Choose data based on isotope
@@ -68,6 +176,25 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
         line=dict(color='green', width=2)
     ))
 
+    # Add vertical line for selected transition
+    if selected_frequency is not None and selected_wavelength is not None:
+        if x_axis_type == 'Frequency Offset':
+            # Use the selected frequency
+            x_position = selected_frequency
+        else:  # Wavelength
+            # Use the selected wavelength
+            x_position = selected_wavelength
+
+        # Add vertical line
+        fig.add_vline(
+            x=x_position,
+            line_width=2,
+            line_dash="dash",
+            line_color="orange",
+            annotation_text="Selected",
+            annotation_position="top right"
+        )
+
     # Update layout
     fig.update_layout(
         title=f'{isotope} Spectra at B = {B_field:.2f} T, T = {temperature:.0f} K',
@@ -111,6 +238,8 @@ def main():
         st.session_state.isotope = 'He3'
     if 'x_axis_type' not in st.session_state:
         st.session_state.x_axis_type = 'Frequency Offset'
+    if 'show_transitions' not in st.session_state:
+        st.session_state.show_transitions = False
 
     # Title and description
     st.title("Helium 1083 nm Line Calculator")
@@ -216,6 +345,16 @@ def main():
     if x_axis_type != st.session_state.x_axis_type:
         st.session_state.x_axis_type = x_axis_type
 
+    # Add checkbox for showing transitions table
+    show_transitions = st.sidebar.checkbox(
+        "Show Transitions Table",
+        value=st.session_state.show_transitions,
+        key="show_transitions_checkbox"
+    )
+
+    if show_transitions != st.session_state.show_transitions:
+        st.session_state.show_transitions = show_transitions
+
     # Add some spacing
     st.sidebar.markdown("---")
 
@@ -236,6 +375,11 @@ def main():
         - Zeeman splitting in magnetic field
         - Hyperfine structure included
         - Doppler broadening from temperature
+
+        **Transitions Table:**
+        - Groups transitions within 2 GHz
+        - Shows average frequencies and wavelengths
+        - Lists all transitions in each group
         """)
 
     # Main content area
@@ -247,14 +391,95 @@ def main():
         **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
         """)
 
-        # Calculate and display spectra
+        # Calculate spectra
         with st.spinner('Calculating spectra...'):
             calculator = get_calculator()
-            spectra_data = calculator.calculate_spectra(B_field, temperature)
+            full_results = calculator.calculate_full_results(B_field, temperature)
+            spectra_data = full_results['spectra_data']
 
-            # Create and display plot
-            fig = create_plotly_figure(spectra_data, st.session_state.isotope, st.session_state.x_axis_type, B_field,
-                                       temperature)
+            # Initialize variables for selected transition
+            selected_frequency = None
+            selected_wavelength = None
+
+            # Show transitions table if requested
+            if st.session_state.show_transitions:
+                st.subheader("Transitions Table")
+                st.markdown("*Select the first column of a row to highlight the transition in the spectrum*")
+
+                # Get the appropriate transitions based on isotope
+                if st.session_state.isotope == 'He3':
+                    transitions = full_results['transitions']['he3']
+                else:
+                    transitions = full_results['transitions']['he4']
+
+                # Create transitions table
+                df_transitions = create_transitions_table(
+                    transitions,
+                    st.session_state.isotope,
+                    full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
+                    full_results['energy_offsets']['he4_offset'],
+                    calculator.c1_ghz
+                )
+
+                # Display the table with selection enabled
+                selected = st.dataframe(
+                    df_transitions,
+                    use_container_width=True,
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    column_config={
+                        "Polarization": st.column_config.TextColumn(
+                            "Polarization",
+                            width="small"
+                        ),
+                        "Average Relative Frequency (GHz)": st.column_config.TextColumn(
+                            "Avg Rel Freq (GHz)",
+                            width="medium"
+                        ),
+                        "Average Wavelength (nm)": st.column_config.TextColumn(
+                            "Avg λ (nm)",
+                            width="medium"
+                        ),
+                        "Transitions in Group": st.column_config.TextColumn(
+                            "Transitions",
+                            width="large"
+                        ),
+                        "Group Intensity": st.column_config.TextColumn(
+                            "Group Intensity",
+                            width="medium"
+                        )
+                    }
+                )
+
+                # Check if a row is selected
+                if selected and selected.selection.rows:
+                    selected_row_idx = selected.selection.rows[0]
+                    selected_row = df_transitions.iloc[selected_row_idx]
+
+                    # Parse the frequency and wavelength from the selected row
+                    selected_frequency = float(selected_row['Average Relative Frequency (GHz)'])
+                    selected_wavelength = float(selected_row['Average Wavelength (nm)'])
+                #
+                # # Download button for transitions table
+                # csv_transitions = df_transitions.to_csv(index=False)
+                # st.download_button(
+                #     label="📊 Download Transitions Table",
+                #     data=csv_transitions,
+                #     file_name=f"{st.session_state.isotope}_transitions_B{B_field:.2f}T.csv",
+                #     mime="text/csv"
+                # )
+
+            # Create and display plot with selected transition highlighted
+            fig = create_plotly_figure(
+                spectra_data,
+                st.session_state.isotope,
+                st.session_state.x_axis_type,
+                B_field,
+                temperature,
+                selected_frequency,
+                selected_wavelength
+            )
             st.plotly_chart(fig, use_container_width=True)
 
     with col_info:
@@ -292,10 +517,8 @@ def main():
         # Download options
         st.subheader("Export Data")
 
-        if st.button("📊 Download CSV Data"):
+        if st.button("📊 Download Spectra CSV"):
             # Generate CSV data
-            import pandas as pd
-
             if st.session_state.isotope == 'He3':
                 freq_data = spectra_data['freq_range'] - 40
                 abs_freq = spectra_data['abs_freq_he3']
