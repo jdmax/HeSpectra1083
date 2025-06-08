@@ -3,6 +3,7 @@
 Helium Spectrum Command-line Interface
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from helium_spectra_calc import HeliumSpectraCalculator
@@ -174,6 +175,7 @@ def main():
     """Main function that calculates the structure and spectra of 1083 nm transitions in He3 and He4."""
     # Output folder
     out_folder = "output/"
+    os.makedirs(out_folder, exist_ok=True)
 
     # Create calculator instance
     calculator = HeliumSpectraCalculator()
