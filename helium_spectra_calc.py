@@ -64,6 +64,17 @@ class HeliumSpectraCalculator:
         # C1 line absolute position in GHz for wavelength calculations
         self.c1_ghz = 2.766933041e+5
 
+        # /// START OF MODIFIED CODE ///
+        # mF values for the basis states, used to identify the mF of the eigenstates
+        self.mF3S_basis = np.array([1.5, 0.5, -0.5, 0.5, -0.5, -1.5])
+        self.mF3P_basis = np.array([2.5, 1.5, 0.5, 1.5, 0.5, -0.5, 0.5, -0.5, -1.5,
+                                    1.5, 0.5, -0.5, 0.5, -0.5, -1.5, -0.5, -1.5, -2.5])
+        # For He4, I=0, so mF = mJ. The basis is the uncoupled |mL, mS> basis.
+        # mJ = mL + mS. For the 9 P-states, basis order is (mL,mS) = (1,1),(0,1),(-1,1),(1,0), etc.
+        self.mF4P_basis = np.array([2.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0, -1.0, -2.0])
+        self.mF4S_basis = np.array([-1.0, 0.0, 1.0])  # mS for S=1 state, ordered by energy
+        # /// END OF MODIFIED CODE ///
+
     def setup_matrices(self):
         """Initialize transformation and Hamiltonian matrices"""
         # Matrix P4 for |J,mJ> coupling
@@ -240,36 +251,28 @@ class HeliumSpectraCalculator:
         D4 = D3 * np.sqrt(3.0 / 4.0)  # Doppler width for He4
 
         # Zero-field computation first for energy references
-        H3S = self.Hhf3S
-        W3S_zero, V3S_zero = np.linalg.eigh(H3S)
+        H3S_zero = self.Hhf3S
+        W3S_zero, V3S_zero = np.linalg.eigh(H3S_zero)
         idx = W3S_zero.argsort()
         W3S_zero = W3S_zero[idx]
-        V3S_zero = V3S_zero[:, idx]
 
-        H3P = self.H3PB0
-        W3P_zero, V3P_zero = np.linalg.eigh(H3P)
+        H3P_zero = self.H3PB0
+        W3P_zero, V3P_zero = np.linalg.eigh(H3P_zero)
         idx = W3P_zero.argsort()
         W3P_zero = W3P_zero[idx]
-        V3P_zero = V3P_zero[:, idx]
 
         # He4 zero field
-        W4S_zero = np.zeros(3)
-        W4S_zero[2] = self.mu * B * self.gsS
-        W4S_zero[1] = self.zero
-        W4S_zero[0] = -self.mu * B * self.gsS
-        V4S_zero = np.eye(3)
-
-        H4P = self.Hf4P
-        W4P_zero, V4P_zero = np.linalg.eigh(H4P)
+        H4P_zero = self.Hf4P
+        W4P_zero, V4P_zero = np.linalg.eigh(H4P_zero)
         idx = W4P_zero.argsort()
         W4P_zero = W4P_zero[idx]
-        V4P_zero = V4P_zero[:, idx]
 
         eC1 = W3P_zero[8] - W3S_zero[5]  # Reference for energy offsets
         eC9 = W3P_zero[16] - W3S_zero[2]
 
         # He4 offset
-        eD2 = W4P_zero[2] - W4S_zero[1]
+        # At B=0, W4S is just [0,0,0] for the triplet state. We take mS=0 as reference.
+        eD2 = W4P_zero[2] - 0.0
         C1C9 = (W3P_zero[16] - W3S_zero[2]) - eC1
         he4_offset = eD2 + self.D2C9 - C1C9
 
@@ -277,15 +280,21 @@ class HeliumSpectraCalculator:
         # Calculate for He3
         H3S = self.Hhf3S + self.mu * B * self.Hzee3S
         W3S, V3S = np.linalg.eigh(H3S)
+        dominant_basis_indices_3S = np.argmax(np.abs(V3S), axis=0)
+        mf3S = self.mF3S_basis[dominant_basis_indices_3S]
         idx = W3S.argsort()
         W3S = W3S[idx]
         V3S = V3S[:, idx]
+        mf3S = mf3S[idx]
 
         H3P = self.H3PB0 + self.mu * B * self.Hzee3P
         W3P, V3P = np.linalg.eigh(H3P)
+        dominant_basis_indices_3P = np.argmax(np.abs(V3P), axis=0)
+        mf3P = self.mF3P_basis[dominant_basis_indices_3P]
         idx = W3P.argsort()
         W3P = W3P[idx]
         V3P = V3P[:, idx]
+        mf3P = mf3P[idx]
 
         # Calculate transition matrix elements for He3
         T3p = self.calculate_sigma_plus_he3(V3S, V3P)
@@ -303,12 +312,16 @@ class HeliumSpectraCalculator:
         W4S[1] = self.zero
         W4S[0] = -self.mu * B * self.gsS
         V4S = np.eye(3)
+        mf4S = self.mF4S_basis  # Already sorted by energy: -1, 0, 1
 
         H4P = self.Hf4P + self.mu * B * self.Hzee4P
         W4P, V4P = np.linalg.eigh(H4P)
+        dominant_basis_indices_4P = np.argmax(np.abs(V4P), axis=0)
+        mf4P = self.mF4P_basis[dominant_basis_indices_4P]
         idx = W4P.argsort()
         W4P = W4P[idx]
         V4P = V4P[:, idx]
+        mf4P = mf4P[idx]
 
         # Calculate transition matrix elements for He4
         T4p = self.calculate_sigma_plus_he4(V4S, V4P)
@@ -326,14 +339,15 @@ class HeliumSpectraCalculator:
             r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4
         )
 
+        # /// START OF MODIFIED CODE ///
         # Return comprehensive results
         return {
             'spectra_data': spectra_data,
             'energy_levels': {
-                'W3S': W3S,
-                'W3P': W3P,
-                'W4S': W4S,
-                'W4P': W4P
+                'W3S': W3S, 'mf3S': mf3S,
+                'W3P': W3P, 'mf3P': mf3P,
+                'W4S': W4S, 'mf4S': mf4S,
+                'W4P': W4P, 'mf4P': mf4P
             },
             'transitions': {
                 'he3': {
@@ -350,6 +364,7 @@ class HeliumSpectraCalculator:
             'doppler_widths': {'D3': D3, 'D4': D4},
             'energy_offsets': {'eC1': eC1, 'he4_offset': he4_offset}
         }
+        # /// END OF MODIFIED CODE ///
 
     def calculate_spectra(self, B, Temp=300):
         """
