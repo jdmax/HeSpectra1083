@@ -241,7 +241,6 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
     return fig
 
 
-# /// START OF MODIFIED CODE ///
 def create_energy_level_diagram(energy_levels, isotope, selected_transition_group=None, pol_color='blue'):
     """Create a Plotly figure for the energy level diagram against mF, split into two subplots."""
     # 1. Select data and labels based on isotope
@@ -285,11 +284,18 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
             x_S, y_S = mF_S[idx_lower], W_S[idx_lower]
             x_P, y_P = mF_P[idx_upper], W_P[idx_upper]
 
+            # /// START OF MODIFIED CODE ///
+            # The HEAD of the arrow (x,y) should be at the P-state (final state).
+            # The TAIL of the arrow (ax,ay) should be at the S-state (initial state).
+            # The key is to use the correct axis references: 'y' for the top plot, 'y2' for the bottom.
             fig.add_annotation(
-                x=x_S, y=y_S, ax=x_P, ay=y_P,
-                xref='x1', yref='y2', axref='x1', ayref='y1',
+                x=x_P, y=y_P,  # Arrow head on P-state
+                ax=x_S, ay=y_S,  # Arrow tail on S-state
+                xref='x', yref='y',  # Head is relative to the first (default) axes
+                axref='x', ayref='y2',  # Tail is relative to the second y-axis
                 showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5, arrowcolor=pol_color
             )
+            # /// END OF MODIFIED CODE ///
 
     # 6. Configure layout and axes
     y_min_P, y_max_P = (np.min(W_P), np.max(W_P)) if len(W_P) > 0 else (0, 1)
@@ -310,9 +316,6 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
     fig.update_yaxes(title_text="2³S Energy (GHz)", range=y_range_S, showgrid=True, row=2, col=1)
 
     return fig
-
-
-# /// END OF MODIFIED CODE ///
 
 
 def main():
