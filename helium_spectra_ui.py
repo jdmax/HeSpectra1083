@@ -63,12 +63,25 @@ def group_transitions(energies, forces, ind_lower, ind_upper, threshold=2.0):
     return groups
 
 
+def to_subscript(s: str) -> str:
+    """Converts a string of digits to Unicode subscript characters."""
+    subscript_map = {
+        '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+        '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'
+    }
+    return "".join(subscript_map.get(char, char) for char in s)
+
+
 def format_transition_name(ind_lower, ind_upper, isotope):
     """Format transition name based on isotope and indices"""
+    # Fix subscripts to index 1 and subscript characters
+    lower_sub = to_subscript(str(ind_lower + 1))
+    upper_sub = to_subscript(str(ind_upper + 1))
+
     if isotope == 'He3':
-        return f"A_{ind_lower} → B_{ind_upper}"
+        return f"A{lower_sub} → B{upper_sub}"
     else:  # He4
-        return f"Y_{ind_lower} → Z_{ind_upper}"
+        return f"Y{lower_sub} → Z<sub>{upper_sub}"
 
 
 def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
