@@ -18,24 +18,84 @@ def get_user_input():
 
 
 def write_energy_levels(out_folder, energy_levels):
-    """Write energy level files"""
-    # Write He3 energy levels
+    """Write energy level files with index, frequency, and magnetic quantum numbers"""
+
+    # Write He3 S state energy levels (6 states)
+    # States are ordered by energy, corresponding to F,mF quantum numbers
+    # For S=1, I=1/2: F=3/2 (mF = +3/2, +1/2, -1/2, -3/2) and F=1/2 (mF = +1/2, -1/2)
+    he3_s_quantum_numbers = [
+        (0, -3 / 2),  # F=3/2, mF=-3/2
+        (1, -1 / 2),  # F=3/2, mF=-1/2
+        (2, -1 / 2),  # F=1/2, mF=-1/2
+        (3, +1 / 2),  # F=1/2, mF=+1/2
+        (4, +1 / 2),  # F=3/2, mF=+1/2
+        (5, +3 / 2)  # F=3/2, mF=+3/2
+    ]
+
     with open(out_folder + "Ai.dat", "w") as f:
-        for i in range(6):
-            f.write(f"{energy_levels['W3S'][i]:.8f} ")
+        f.write("# He3 23S1 state energy levels\n")
+        f.write("# Index  Energy(GHz)      mF\n")
+        for i, (idx, mF) in enumerate(he3_s_quantum_numbers):
+            f.write(f"{i:6d} {energy_levels['W3S'][i]:15.8f} {mF:6.1f}\n")
+
+    # Write He3 P state energy levels (18 states)
+    # States include J=0,1,2 coupled with I=1/2
+    # The ordering follows the basis construction in the code
+    he3_p_quantum_numbers = []
+
+    # First 9 states are mI = +1/2 block
+    # J=2: mJ = +2, +1, 0, -1, -2
+    # J=1: mJ = +1, 0, -1
+    # J=0: mJ = 0
+    mI = +0.5
+    for mJ in [+2, +1, 0, +1, 0, -1, 0, -1, -2]:
+        he3_p_quantum_numbers.append((mJ, mI, mJ + mI))
+
+    # Next 9 states are mI = -1/2 block
+    mI = -0.5
+    for mJ in [+2, +1, 0, +1, 0, -1, 0, -1, -2]:
+        he3_p_quantum_numbers.append((mJ, mI, mJ + mI))
 
     with open(out_folder + "Bj.dat", "w") as f:
-        for i in range(18):
-            f.write(f"{energy_levels['W3P'][i]:.8f} ")
+        f.write("# He3 23P state energy levels\n")
+        f.write("# Index  Energy(GHz)      mJ    mI    mF\n")
+        for i, (mJ, mI, mF) in enumerate(he3_p_quantum_numbers):
+            f.write(f"{i:6d} {energy_levels['W3P'][i]:15.8f} {mJ:6.1f} {mI:5.1f} {mF:6.1f}\n")
 
-    # Write He4 energy levels
+    # Write He4 S state energy levels (3 states)
+    # Simple triplet state with mS = +1, 0, -1
+    he4_s_quantum_numbers = [
+        (0, -1),  # mS = -1
+        (1, 0),  # mS =  0
+        (2, +1)  # mS = +1
+    ]
+
     with open(out_folder + "Yi.dat", "w") as f:
-        for i in range(3):
-            f.write(f"{energy_levels['W4S'][i]:.8f} ")
+        f.write("# He4 23S1 state energy levels\n")
+        f.write("# Index  Energy(GHz)      mS\n")
+        for i, (idx, mS) in enumerate(he4_s_quantum_numbers):
+            f.write(f"{i:6d} {energy_levels['W4S'][i]:15.8f} {mS:6d}\n")
+
+    # Write He4 P state energy levels (9 states)
+    # States are J=2,1,0 with corresponding mJ values
+    # Order follows the P4 transformation matrix
+    he4_p_quantum_numbers = [
+        (0, 2, +2),  # J=2, mJ=+2
+        (1, 2, +1),  # J=2, mJ=+1
+        (2, 2, 0),  # J=2, mJ=0
+        (3, 1, +1),  # J=1, mJ=+1
+        (4, 1, 0),  # J=1, mJ=0
+        (5, 1, -1),  # J=1, mJ=-1
+        (6, 2, -1),  # J=2, mJ=-1
+        (7, 2, -2),  # J=2, mJ=-2
+        (8, 0, 0)  # J=0, mJ=0
+    ]
 
     with open(out_folder + "Zi.dat", "w") as f:
-        for i in range(9):
-            f.write(f"{energy_levels['W4P'][i]:.8f} ")
+        f.write("# He4 23P state energy levels\n")
+        f.write("# Index  Energy(GHz)      J    mJ\n")
+        for i, (idx, J, mJ) in enumerate(he4_p_quantum_numbers):
+            f.write(f"{i:6d} {energy_levels['W4P'][i]:15.8f} {J:6d} {mJ:6d}\n")
 
 
 def write_transitions(filename, B, transition_data):
