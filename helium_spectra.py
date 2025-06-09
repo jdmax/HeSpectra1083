@@ -107,7 +107,8 @@ def write_transitions(filename, B, transition_data):
 
     with open(filename, "w") as f:
         for i in range(len(energies)):
-            f.write(f"{B:10.5f} {energies[i]:15.8e} {forces[i]:15.8e} {ind_lower[i]:3d} {ind_upper[i]:3d}\n")
+            # Convert to 1-based indices for display (Fortran convention)
+            f.write(f"{B:10.5f} {energies[i]:15.8e} {forces[i]:15.8e} {ind_lower[i]+1:3d} {ind_upper[i]+1:3d}\n")
 
 
 def write_all_transitions(out_folder, B, transitions):
