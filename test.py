@@ -242,7 +242,7 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
 
 
 def create_energy_level_diagram(energy_levels, isotope, selected_transition_group=None, pol_color='blue'):
-    """Create a Plotly figure for the energy level diagram against mF, split into two subplots."""
+    """Create a Plotly figure for the energy level diagram with a rounded, dynamic, relabeled y-axis."""
     # 1. Select data and labels based on isotope
     if isotope == 'He3':
         W_S, mF_S = energy_levels['W3S'], energy_levels['mf3S']
@@ -257,63 +257,75 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
         mF_values = [-2.0, -1.0, 0.0, 1.0, 2.0]
         mF_labels = ['-2', '-1', '0', '1', '2']
 
-    # 2. Create subplot figure
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02)
+    # 2. Dynamically calculate the offset and round it to the nearest 10
+    if len(W_S) > 0 and len(W_P) > 0:
+        total_span = (np.max(W_P) - np.min(W_P)) + (np.max(W_S) - np.min(W_S))
+        VISUAL_GAP = total_span * 0.15
+        P_OFFSET = np.max(W_S) - np.min(W_P) + VISUAL_GAP
+        P_OFFSET = round(P_OFFSET / 10) * 10  # Round to nearest 10
+    else:
+        P_OFFSET = 50.0
 
-    # 3. Add P-states to top subplot (row=1)
+    # 3. Create a single figure object
+    fig = go.Figure()
     line_width = 0.4
-    for i in range(len(W_P)):
-        mf, energy = mF_P[i], W_P[i]
-        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy],
-                                 mode='lines', line_color='black', showlegend=False), row=1, col=1)
-        fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_P}{to_subscript(str(i + 1))}",
-                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10), row=1, col=1)
 
-    # 4. Add S-states to bottom subplot (row=2)
+    # 4. Add P-states (offset) and S-states (no offset)
+    for i in range(len(W_P)):
+        mf, energy = mF_P[i], W_P[i] + P_OFFSET
+        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
+                                 line_color='black', showlegend=False))
+        fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_P}{to_subscript(str(i + 1))}",
+                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
+
     for i in range(len(W_S)):
         mf, energy = mF_S[i], W_S[i]
-        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy],
-                                 mode='lines', line_color='black', showlegend=False), row=2, col=1)
+        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
+                                 line_color='black', showlegend=False))
         fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_S}{to_subscript(str(i + 1))}",
-                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10), row=2, col=1)
+                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
 
-    # 5. Plot selected transitions using annotations as arrows between subplots
+    # 5. Plot selected transitions
     if selected_transition_group:
         for i in range(len(selected_transition_group['lower'])):
             idx_lower, idx_upper = selected_transition_group['lower'][i], selected_transition_group['upper'][i]
             x_S, y_S = mF_S[idx_lower], W_S[idx_lower]
-            x_P, y_P = mF_P[idx_upper], W_P[idx_upper]
+            x_P, y_P = mF_P[idx_upper], W_P[idx_upper] + P_OFFSET
+            fig.add_annotation(x=x_P, y=y_P, ax=x_S, ay=y_S, xref='x', yref='y', axref='x', ayref='y', showarrow=True,
+                               arrowhead=2, arrowsize=1, arrowwidth=1.5, arrowcolor=pol_color)
 
-            # This is the corrected annotation call.
-            # It explicitly tells Plotly to reference the y-axis of the top plot ('y')
-            # for the arrow head and the y-axis of the bottom plot ('y2') for the arrow tail.
-            fig.add_annotation(
-                x=x_P, y=y_P,           # Arrow head on P-state
-                ax=x_S, ay=y_S,          # Arrow tail on S-state
-                xref='x',                # Head x-coordinate is on the shared x-axis
-                yref='y',                # Head y-coordinate is on the TOP subplot's y-axis
-                axref='x',               # Tail x-coordinate is on the shared x-axis
-                ayref='y2',              # Tail y-coordinate is on the BOTTOM subplot's y-axis
-                showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5, arrowcolor=pol_color
-            )
-
-    # 6. Configure layout and axes
-    y_min_P, y_max_P = (np.min(W_P), np.max(W_P)) if len(W_P) > 0 else (0, 1)
-    y_buffer_P = (y_max_P - y_min_P) * 0.15 if (y_max_P - y_min_P) > 0 else 1
-    y_range_P = [y_min_P - y_buffer_P, y_max_P + y_buffer_P]
-
+    # 6. Configure layout and axes with custom ticks
     y_min_S, y_max_S = (np.min(W_S), np.max(W_S)) if len(W_S) > 0 else (0, 1)
-    y_buffer_S = (y_max_S - y_min_S) * 0.15 if (y_max_S - y_min_S) > 0 else 1
-    y_range_S = [y_min_S - y_buffer_S, y_max_S + y_buffer_S]
+    W_P_offset = W_P + P_OFFSET
+    y_min_P_offset, y_max_P_offset = (np.min(W_P_offset), np.max(W_P_offset)) if len(W_P) > 0 else (P_OFFSET,
+                                                                                                    P_OFFSET + 1)
+    y_range_buffer = (y_max_P_offset - y_min_S) * 0.1
+    y_range = [y_min_S - y_range_buffer, y_max_P_offset + y_range_buffer]
 
-    fig.update_layout(
-        title="Energy Level Diagram", height=700, showlegend=False,
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)'
-    )
-    fig.update_xaxes(title_text="Magnetic Quantum Number m_F", tickmode='array', tickvals=mF_values, ticktext=mF_labels,
-                     row=2, col=1)
-    fig.update_yaxes(title_text="2³P Energy (GHz)", range=y_range_P, showgrid=True, row=1, col=1)
-    fig.update_yaxes(title_text="2³S Energy (GHz)", range=y_range_S, showgrid=True, row=2, col=1)
+    # --- Custom Tick Generation ---
+    final_tickvals, final_ticktext = [], []
+    if len(W_S) > 0:
+        s_tickvals = np.linspace(y_min_S, y_max_S, 5)
+        final_tickvals.extend(s_tickvals)
+        final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in s_tickvals])  # Rounded labels
+    if len(W_P) > 0:
+        p_original_tickvals = np.linspace(np.min(W_P), np.max(W_P), 5)
+        p_plot_tickvals = p_original_tickvals + P_OFFSET
+        final_tickvals.extend(p_plot_tickvals)
+        final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in p_original_tickvals])  # Rounded labels
+
+    fig.update_layout(title="Energy Level Diagram", height=700, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
+                      paper_bgcolor='rgba(0,0,0,0)')
+    fig.update_xaxes(title_text="Magnetic Quantum Number m_F", tickmode='array', tickvals=mF_values, ticktext=mF_labels)
+    fig.update_yaxes(title_text="Relative Energy (GHz)", range=y_range, showgrid=True, tickvals=final_tickvals,
+                     ticktext=final_ticktext)
+
+    # Add text labels to identify S and P states
+    x_pos_label = mF_values[0] - line_width
+    fig.add_annotation(x=x_pos_label, y=np.mean(W_P_offset), text="2³P States", showarrow=False, xanchor='right',
+                       textangle=-90)
+    fig.add_annotation(x=x_pos_label, y=np.mean(W_S), text="2³S States", showarrow=False, xanchor='right',
+                       textangle=-90)
 
     return fig
 
