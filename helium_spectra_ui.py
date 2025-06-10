@@ -523,8 +523,6 @@ def main():
     #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
     st.markdown("---")
-    st.markdown("""...""", unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()
