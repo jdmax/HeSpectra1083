@@ -223,7 +223,7 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
         xaxis_title=x_label,
         yaxis_title='Intensity',
         template='plotly_white',
-        height=600,
+        height=500,
         showlegend=True,
         legend=dict(
             yanchor="top",
@@ -313,7 +313,7 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
         final_tickvals.extend(p_plot_tickvals)
         final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in p_original_tickvals])  # Rounded labels
 
-    fig.update_layout(height=600, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
+    fig.update_layout(height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
                       paper_bgcolor='rgba(0,0,0,0)')
     fig.update_layout(margin=dict(t=0, l=0, r=0, b=0))
     fig.update_xaxes(title_text="Magnetic Quantum Number m_F", tickmode='array', tickvals=mF_values, ticktext=mF_labels)
@@ -477,7 +477,7 @@ def main():
                 st.subheader("Transitions Table")
                 st.markdown("*Select a row to highlight the transition group.*")
                 st.dataframe(
-                    df_transitions, key="transitions_df_select", on_select="rerun", height=550,
+                    df_transitions, key="transitions_df_select", on_select="rerun", height=400,
                     selection_mode="single-row", use_container_width=True, hide_index=True,
                     column_config={
                         "Polarization": st.column_config.TextColumn("Polarization", width="small"),
