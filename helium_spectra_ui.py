@@ -81,12 +81,12 @@ def format_transition_name(ind_lower, ind_upper, isotope):
     if isotope == 'He3':
         return f"A{lower_sub} → B{upper_sub}"
     else:  # He4
-        return f"Y{lower_sub} → Z<sub>{upper_sub}"
+        return f"Y{lower_sub} → Z{upper_sub}"
 
 
 def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
     """Create a DataFrame with grouped transitions"""
-    all_groups = []
+    all_groups_data = []
 
     for pol_name, pol_data in [('σ+', transitions['plus']),
                                ('σ-', transitions['minus']),
@@ -105,11 +105,12 @@ def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
 
             # Calculate absolute frequency and wavelength
             if isotope == 'He3':
-                abs_freq = c1_ghz + avg_energy
+                abs_freq = c1_ghz + avg_energy - 40
             else:  # He4
                 abs_freq = c1_ghz + avg_energy
 
-            avg_wavelength = 299792458.0 / abs_freq  # nm
+            # Avoid division by zero for frequency
+            avg_wavelength = (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq != 0 else 0
 
             # Format transition names
             transition_names = []
@@ -121,17 +122,22 @@ def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
                 )
                 transition_names.append(name)
 
-            all_groups.append({
+            all_groups_data.append({
                 'Polarization': pol_name,
                 'Average Relative Frequency (GHz)': f"{avg_energy:.3f}",
                 'Average Wavelength (nm)': f"{avg_wavelength:.6f}",
                 'Transitions in Group': ', '.join(transition_names),
                 'Group Intensity': f"{total_intensity:.4f}",
-                '_intensity_value': total_intensity  # Keep numeric value for sorting
+                '_intensity_value': total_intensity,  # Keep numeric value for sorting
+                'ind_lower_list': group['ind_lower'],  # Keep raw indices for plotting
+                'ind_upper_list': group['ind_upper']  # Keep raw indices for plotting
             })
 
     # Create DataFrame and sort by intensity (descending)
-    df = pd.DataFrame(all_groups)
+    if not all_groups_data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_groups_data)
     df = df.sort_values('_intensity_value', ascending=False)
     df = df.drop('_intensity_value', axis=1)  # Remove the helper column
 
@@ -161,7 +167,10 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
         x_data = freq_range
         x_label = 'Frequency Offset (GHz)'
     else:  # Wavelength
-        x_data = 299792458.0 / abs_freq  # Convert to wavelength in nm
+        # Avoid division by zero
+        non_zero_freq = abs_freq != 0
+        x_data = np.full_like(abs_freq, fill_value=np.nan, dtype=float)
+        x_data[non_zero_freq] = (299792458.0 / (abs_freq[non_zero_freq] * 1e9)) * 1e9
         x_label = 'Wavelength (nm)'
 
     # Create plotly figure
@@ -231,30 +240,108 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
     return fig
 
 
+def create_energy_level_diagram(energy_levels, isotope, selected_transition_group=None, pol_color='blue'):
+    """Create a Plotly figure for the energy level diagram with a rounded, dynamic, relabeled y-axis."""
+    # 1. Select data and labels based on isotope
+    if isotope == 'He3':
+        W_S, mF_S = energy_levels['W3S'], energy_levels['mf3S']
+        W_P, mF_P = energy_levels['W3P'], energy_levels['mf3P']
+        label_S, label_P = 'A', 'B'
+        mF_values = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
+        mF_labels = ['-5/2', '-3/2', '-1/2', '1/2', '3/2', '5/2']
+    else:  # He4
+        W_S, mF_S = energy_levels['W4S'], energy_levels['mf4S']
+        W_P, mF_P = energy_levels['W4P'], energy_levels['mf4P']
+        label_S, label_P = 'Y', 'Z'
+        mF_values = [-2.0, -1.0, 0.0, 1.0, 2.0]
+        mF_labels = ['-2', '-1', '0', '1', '2']
+
+    # 2. Dynamically calculate the offset and round it to the nearest 10
+    if len(W_S) > 0 and len(W_P) > 0:
+        total_span = (np.max(W_P) - np.min(W_P)) + (np.max(W_S) - np.min(W_S))
+        VISUAL_GAP = total_span * 0.15
+        P_OFFSET = np.max(W_S) - np.min(W_P) + VISUAL_GAP
+        P_OFFSET = round(P_OFFSET / 10) * 10  # Round to nearest 10
+    else:
+        P_OFFSET = 50.0
+
+    # 3. Create a single figure object
+    fig = go.Figure()
+    line_width = 0.4
+
+    # 4. Add P-states (offset) and S-states (no offset)
+    for i in range(len(W_P)):
+        mf, energy = mF_P[i], W_P[i] + P_OFFSET
+        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
+                                 line_color='black', showlegend=False))
+        fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_P}{to_subscript(str(i + 1))}",
+                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
+
+    for i in range(len(W_S)):
+        mf, energy = mF_S[i], W_S[i]
+        fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
+                                 line_color='black', showlegend=False))
+        fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_S}{to_subscript(str(i + 1))}",
+                           showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
+
+    # 5. Plot selected transitions
+    if selected_transition_group:
+        for i in range(len(selected_transition_group['lower'])):
+            idx_lower, idx_upper = selected_transition_group['lower'][i], selected_transition_group['upper'][i]
+            x_S, y_S = mF_S[idx_lower], W_S[idx_lower]
+            x_P, y_P = mF_P[idx_upper], W_P[idx_upper] + P_OFFSET
+            fig.add_annotation(x=x_P, y=y_P, ax=x_S, ay=y_S, xref='x', yref='y', axref='x', ayref='y', showarrow=True,
+                               arrowhead=2, arrowsize=1, arrowwidth=1.5, arrowcolor=pol_color)
+
+    # 6. Configure layout and axes with custom ticks
+    y_min_S, y_max_S = (np.min(W_S), np.max(W_S)) if len(W_S) > 0 else (0, 1)
+    W_P_offset = W_P + P_OFFSET
+    y_min_P_offset, y_max_P_offset = (np.min(W_P_offset), np.max(W_P_offset)) if len(W_P) > 0 else (P_OFFSET,
+                                                                                                    P_OFFSET + 1)
+    y_range_buffer = (y_max_P_offset - y_min_S) * 0.1
+    y_range = [y_min_S - y_range_buffer, y_max_P_offset + y_range_buffer]
+
+    # --- Custom Tick Generation ---
+    final_tickvals, final_ticktext = [], []
+    if len(W_S) > 0:
+        s_tickvals = np.linspace(y_min_S, y_max_S, 5)
+        final_tickvals.extend(s_tickvals)
+        final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in s_tickvals])  # Rounded labels
+    if len(W_P) > 0:
+        p_original_tickvals = np.linspace(np.min(W_P), np.max(W_P), 5)
+        p_plot_tickvals = p_original_tickvals + P_OFFSET
+        final_tickvals.extend(p_plot_tickvals)
+        final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in p_original_tickvals])  # Rounded labels
+
+    fig.update_layout(title="Energy Level Diagram", height=700, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
+                      paper_bgcolor='rgba(0,0,0,0)')
+    fig.update_xaxes(title_text="Magnetic Quantum Number m_F", tickmode='array', tickvals=mF_values, ticktext=mF_labels)
+    fig.update_yaxes(title_text="Relative Energy (GHz)", range=y_range, showgrid=True, tickvals=final_tickvals,
+                     ticktext=final_ticktext)
+
+    # Add text labels to identify S and P states
+    x_pos_label = mF_values[0] - line_width
+    fig.add_annotation(x=x_pos_label, y=np.mean(W_P_offset), text="2³P States", showarrow=False, xanchor='right',
+                       textangle=-90)
+    fig.add_annotation(x=x_pos_label, y=np.mean(W_S), text="2³S States", showarrow=False, xanchor='right',
+                       textangle=-90)
+
+    return fig
+
+
 def main():
     """Main Streamlit application"""
-
-    # Set page configuration
     st.set_page_config(
-        page_title="Helium Spectra Calculator",
-        page_icon="🔬",
-        layout="wide",
-        initial_sidebar_state="expanded"
+        page_title="Helium Spectra Calculator", page_icon="🔬",
+        layout="wide", initial_sidebar_state="expanded"
     )
 
-    # Initialize session state variables
-    if 'b_field_value' not in st.session_state:
-        st.session_state.b_field_value = 1.0
-    if 'temp_value' not in st.session_state:
-        st.session_state.temp_value = 300
-    if 'isotope' not in st.session_state:
-        st.session_state.isotope = 'He3'
-    if 'x_axis_type' not in st.session_state:
-        st.session_state.x_axis_type = 'Frequency Offset'
-    if 'show_transitions' not in st.session_state:
-        st.session_state.show_transitions = False
+    if 'b_field_value' not in st.session_state: st.session_state.b_field_value = 1.0
+    if 'temp_value' not in st.session_state: st.session_state.temp_value = 300
+    if 'isotope' not in st.session_state: st.session_state.isotope = 'He3'
+    if 'x_axis_type' not in st.session_state: st.session_state.x_axis_type = 'Frequency Offset'
+    if 'show_transitions' not in st.session_state: st.session_state.show_transitions = True
 
-    # Title and description
     st.title("Helium 1083 nm Line Calculator")
     st.markdown("""
     Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
@@ -263,312 +350,178 @@ def main():
 
     # Sidebar controls
     st.sidebar.header("Parameters")
-
-    # Magnetic field controls with synchronization
     st.sidebar.subheader("Magnetic Field")
     col1, col2 = st.sidebar.columns(2)
-
     with col1:
         B_field_slider = st.slider(
-            "B Field (T)",
-            min_value=0.01,
-            max_value=7.0,
-            value=st.session_state.b_field_value,
-            step=0.01,
-            key="b_slider"
-        )
-
+            "B Field (T)", 0.01, 7.0, st.session_state.b_field_value, 0.01, key="b_slider")
     with col2:
         B_field_input = st.number_input(
-            "Exact B (T)",
-            min_value=0.01,
-            max_value=10.0,
-            value=st.session_state.b_field_value,
-            step=0.01,
-            format="%.3f",
-            key="b_input"
-        )
+            "Exact B (T)", 0.01, 10.0, st.session_state.b_field_value, 0.01, "%.3f", key="b_input")
 
-    # Synchronization logic for B field
     if B_field_slider != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_slider
+        st.session_state.b_field_value = B_field_slider;
         st.rerun()
     elif B_field_input != st.session_state.b_field_value:
-        st.session_state.b_field_value = B_field_input
+        st.session_state.b_field_value = B_field_input;
         st.rerun()
-
     B_field = st.session_state.b_field_value
 
-    # Temperature controls with synchronization
     st.sidebar.subheader("Temperature")
     col3, col4 = st.sidebar.columns(2)
-
     with col3:
         temp_slider = st.slider(
-            "Temperature (K)",
-            min_value=77,
-            max_value=1000,
-            value=st.session_state.temp_value,
-            step=1,
-            key="temp_slider"
-        )
-
+            "Temperature (K)", 77, 1000, st.session_state.temp_value, 1, key="temp_slider")
     with col4:
         temp_input = st.number_input(
-            "Exact T (K)",
-            min_value=77,
-            max_value=1000,
-            value=st.session_state.temp_value,
-            step=1,
-            format="%d",
-            key="temp_input"
-        )
+            "Exact T (K)", 77, 1000, st.session_state.temp_value, 1, "%d", key="temp_input")
 
-    # Synchronization logic for temperature
     if temp_slider != st.session_state.temp_value:
-        st.session_state.temp_value = temp_slider
+        st.session_state.temp_value = temp_slider;
         st.rerun()
     elif temp_input != st.session_state.temp_value:
-        st.session_state.temp_value = temp_input
+        st.session_state.temp_value = temp_input;
         st.rerun()
-
     temperature = st.session_state.temp_value
 
-    # Other controls
     st.sidebar.subheader("Display Options")
     isotope = st.sidebar.radio(
-        "Isotope",
-        ["He3", "He4"],
-        index=0 if st.session_state.isotope == 'He3' else 1,
-        key="isotope_radio"
-    )
+        "Isotope", ["He3", "He4"], index=0 if st.session_state.isotope == 'He3' else 1, key="isotope_radio")
 
-    # Update session state if isotope changed
-    if isotope != st.session_state.isotope:
-        st.session_state.isotope = isotope
+    if 'isotope_memory' not in st.session_state: st.session_state.isotope_memory = isotope
+    if isotope != st.session_state.isotope_memory:
+        st.session_state.isotope_memory = isotope
+        if 'transitions_df_select' in st.session_state: del st.session_state['transitions_df_select']
+        st.rerun()
+    st.session_state.isotope = isotope
 
     x_axis_type = st.sidebar.radio(
-        "X-axis",
-        ["Frequency Offset", "Wavelength"],
-        index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1,
-        key="x_axis_radio"
-    )
+        "X-axis", ["Frequency Offset", "Wavelength"],
+        index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1, key="x_axis_radio")
+    if x_axis_type != st.session_state.x_axis_type: st.session_state.x_axis_type = x_axis_type
 
-    # Update session state if x_axis_type changed
-    if x_axis_type != st.session_state.x_axis_type:
-        st.session_state.x_axis_type = x_axis_type
-
-    # Add checkbox for showing transitions table
     show_transitions = st.sidebar.checkbox(
-        "Show Transitions Table",
-        value=st.session_state.show_transitions,
-        key="show_transitions_checkbox"
-    )
+        "Show Transitions Table & Diagram", value=st.session_state.show_transitions, key="show_transitions_checkbox")
+    if show_transitions != st.session_state.show_transitions: st.session_state.show_transitions = show_transitions
 
-    if show_transitions != st.session_state.show_transitions:
-        st.session_state.show_transitions = show_transitions
-
-    # Add some spacing
     st.sidebar.markdown("---")
-
-    # Information panel
     with st.sidebar.expander("ℹ️ Information"):
         st.markdown("""
-        **Parameters:**
-        - **B Field**: 0.01 - 10.0 Tesla
-        - **Temperature**: 77 - 1000 Kelvin
-        - **Doppler Width**: ∝ √(T/300)
+                **Parameters:**
+                - **B Field**: 0.01 - 10.0 Tesla
+                - **Temperature**: 77 - 1000 Kelvin
+                - **Doppler Width**: ∝ √(T/300)
 
-        **Polarizations:**
-        - **σ+**: Right circular polarization
-        - **σ-**: Left circular polarization  
-        - **π**: Linear polarization
+                **Polarizations:**
+                - **σ+**: Right circular polarization
+                - **σ-**: Left circular polarization  
+                - **π**: Linear polarization
 
-        **Physics:**
-        - Zeeman splitting in magnetic field
-        - Hyperfine structure included
-        - Doppler broadening from temperature
+                **Physics:**
+                - Zeeman splitting in magnetic field
+                - Hyperfine structure included
+                - Doppler broadening from temperature
 
-        **Transitions Table:**
-        - Groups transitions within 2 GHz
-        - Shows average frequencies and wavelengths
-        - Lists all transitions in each group
-        """)
+                **Transitions Table:**
+                - Groups transitions within 2 GHz
+                - Shows average frequencies and wavelengths
+                - Lists all transitions in each group
+                """)
 
-    # Main content area
-    col_main, col_info = st.columns([3, 1])
+    #col_main, col_info = st.columns([3, 1])
+    #with col_main:
+    st.markdown(f"""
+    **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
+    """)
+    with st.spinner('Calculating spectra...'):
+        calculator = get_calculator()
+        full_results = calculator.calculate_full_results(B_field, temperature)
+        spectra_data = full_results['spectra_data']
 
-    with col_main:
-        # Show current parameters
-        st.markdown(f"""
-        **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
-        """)
+        selected_frequency, selected_wavelength = None, None
+        selected_transition_group, pol_color = None, 'grey'
 
-        # Calculate spectra
-        with st.spinner('Calculating spectra...'):
-            calculator = get_calculator()
-            full_results = calculator.calculate_full_results(B_field, temperature)
-            spectra_data = full_results['spectra_data']
+        if st.session_state.isotope == 'He3':
+            transitions = full_results['transitions']['he3']
+        else:
+            transitions = full_results['transitions']['he4']
 
-            # Initialize variables for selected transition
-            selected_frequency = None
-            selected_wavelength = None
+        df_transitions = create_transitions_table(
+            transitions, st.session_state.isotope,
+            full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
+            full_results['energy_offsets']['he4_offset'], calculator.c1_ghz)
 
-            # Show transitions table if requested
-            if st.session_state.show_transitions:
-                st.subheader("Transitions Table")
-                st.markdown("*Select the first column of a row to highlight the transition in the spectrum*")
-
-                # Get the appropriate transitions based on isotope
-                if st.session_state.isotope == 'He3':
-                    transitions = full_results['transitions']['he3']
-                else:
-                    transitions = full_results['transitions']['he4']
-
-                # Create transitions table
-                df_transitions = create_transitions_table(
-                    transitions,
-                    st.session_state.isotope,
-                    full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
-                    full_results['energy_offsets']['he4_offset'],
-                    calculator.c1_ghz
-                )
-
-                # Display the table with selection enabled
-                selected = st.dataframe(
-                    df_transitions,
-                    use_container_width=True,
-                    hide_index=True,
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    column_config={
-                        "Polarization": st.column_config.TextColumn(
-                            "Polarization",
-                            width="small"
-                        ),
-                        "Average Relative Frequency (GHz)": st.column_config.TextColumn(
-                            "Avg Rel Freq (GHz)",
-                            width="medium"
-                        ),
-                        "Average Wavelength (nm)": st.column_config.TextColumn(
-                            "Avg λ (nm)",
-                            width="medium"
-                        ),
-                        "Transitions in Group": st.column_config.TextColumn(
-                            "Transitions",
-                            width="large"
-                        ),
-                        "Group Intensity": st.column_config.TextColumn(
-                            "Group Intensity",
-                            width="medium"
-                        )
-                    }
-                )
-
-                # Check if a row is selected
-                if selected and selected.selection.rows:
-                    selected_row_idx = selected.selection.rows[0]
-                    selected_row = df_transitions.iloc[selected_row_idx]
-
-                    # Parse the frequency and wavelength from the selected row
+        if st.session_state.show_transitions and 'transitions_df_select' in st.session_state:
+            if st.session_state.transitions_df_select['selection']['rows']:
+                selected_row_index = st.session_state.transitions_df_select['selection']['rows'][0]
+                if selected_row_index < len(df_transitions):
+                    selected_row = df_transitions.iloc[selected_row_index]
                     selected_frequency = float(selected_row['Average Relative Frequency (GHz)'])
                     selected_wavelength = float(selected_row['Average Wavelength (nm)'])
-                #
-                # # Download button for transitions table
-                # csv_transitions = df_transitions.to_csv(index=False)
-                # st.download_button(
-                #     label="📊 Download Transitions Table",
-                #     data=csv_transitions,
-                #     file_name=f"{st.session_state.isotope}_transitions_B{B_field:.2f}T.csv",
-                #     mime="text/csv"
-                # )
+                    selected_transition_group = {
+                        'lower': selected_row['ind_lower_list'], 'upper': selected_row['ind_upper_list']
+                    }
+                    pol_color = {'σ+': 'blue', 'σ-': 'red', 'π': 'green'}.get(selected_row['Polarization'], 'grey')
 
-            # Create and display plot with selected transition highlighted
-            fig = create_plotly_figure(
-                spectra_data,
-                st.session_state.isotope,
-                st.session_state.x_axis_type,
-                B_field,
-                temperature,
-                selected_frequency,
-                selected_wavelength
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        fig = create_plotly_figure(
+            spectra_data, st.session_state.isotope, st.session_state.x_axis_type,
+            B_field, temperature, selected_frequency, selected_wavelength)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with col_info:
-        st.subheader("Quick Settings")
+        if st.session_state.show_transitions:
+            st.markdown("---")
+            col_table, col_diagram = st.columns(2)
+            with col_table:
+                st.subheader("Transitions Table")
+                st.markdown("*Select a row to highlight the transition group.*")
+                st.dataframe(
+                    df_transitions, key="transitions_df_select", on_select="rerun",
+                    selection_mode="single-row", use_container_width=True, hide_index=True,
+                    column_config={
+                        "Polarization": st.column_config.TextColumn("Polarization", width="small"),
+                        "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
+                        "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
+                        "Transitions in Group": st.column_config.TextColumn("Transitions"),
+                        "Group Intensity": st.column_config.TextColumn("Intensity"),
+                        "ind_lower_list": None, "ind_upper_list": None})
+            with col_diagram:
+                st.subheader("Energy Level Diagram")
+                st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
+                fig_levels = create_energy_level_diagram(
+                    full_results['energy_levels'], st.session_state.isotope,
+                    selected_transition_group, pol_color)
+                st.plotly_chart(fig_levels, use_container_width=True)
 
-        # Preset buttons
-        if st.button("🧊 Liquid Nitrogen (77K)"):
-            st.session_state.temp_value = 77
-            st.rerun()
+    # with col_info:
+    #     st.subheader("Quick Settings")
+    #     if st.button("🧊 Liquid Nitrogen (77K)"): st.session_state.temp_value = 77; st.rerun()
+    #     if st.button("🏠 Room Temperature (300K)"): st.session_state.temp_value = 300; st.rerun()
+    #     if st.button("🔥 High Temperature (800K)"): st.session_state.temp_value = 800; st.rerun()
+    #     st.markdown("---")
+    #     if st.button("⚡ Low Field (0.01T)"): st.session_state.b_field_value = 0.01; st.rerun()
+    #     if st.button("🧲 High Field (1T)"): st.session_state.b_field_value = 1.0; st.rerun()
+    #     if st.button("🚀 Higher Field (5T)"): st.session_state.b_field_value = 5.0; st.rerun()
+    #     st.markdown("---")
+    #
+    #     st.subheader("Export Data")
+    #     if st.session_state.isotope == 'He3':
+    #         freq_data, abs_freq = spectra_data['freq_range'] - 40, spectra_data['abs_freq_he3']
+    #         plus_data, minus_data, pi_data = spectra_data['he3_plus'], spectra_data['he3_minus'], spectra_data['he3_pi']
+    #     else:
+    #         freq_data, abs_freq = spectra_data['freq_range'], spectra_data['abs_freq_he4']
+    #         plus_data, minus_data, pi_data = spectra_data['he4_plus'], spectra_data['he4_minus'], spectra_data['he4_pi']
+    #     df_download = pd.DataFrame({
+    #         'frequency_offset_ghz': freq_data, 'absolute_freq_ghz': abs_freq,
+    #         'wavelength_nm': (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq.any() != 0 else 0,
+    #         'sigma_plus': plus_data, 'sigma_minus': minus_data, 'pi': pi_data
+    #     })
+    #     csv = df_download.to_csv(index=False).encode('utf-8')
+    #     st.download_button(
+    #         label="📊 Download Spectra CSV", data=csv,
+    #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
-        if st.button("🏠 Room Temperature (300K)"):
-            st.session_state.temp_value = 300
-            st.rerun()
-
-        if st.button("🔥 High Temperature (800K)"):
-            st.session_state.temp_value = 800
-            st.rerun()
-
-        st.markdown("---")
-
-        if st.button("⚡ Low Field (0.01T)"):
-            st.session_state.b_field_value = 0.01
-            st.rerun()
-
-        if st.button("🧲 High Field (1T)"):
-            st.session_state.b_field_value = 1.0
-            st.rerun()
-
-        if st.button("🚀 Higher Field (5T)"):
-            st.session_state.b_field_value = 5.0
-            st.rerun()
-
-        st.markdown("---")
-
-        # Download options
-        st.subheader("Export Data")
-
-        if st.button("📊 Download Spectra CSV"):
-            # Generate CSV data
-            if st.session_state.isotope == 'He3':
-                freq_data = spectra_data['freq_range'] - 40
-                abs_freq = spectra_data['abs_freq_he3']
-                plus_data = spectra_data['he3_plus']
-                minus_data = spectra_data['he3_minus']
-                pi_data = spectra_data['he3_pi']
-            else:
-                freq_data = spectra_data['freq_range']
-                abs_freq = spectra_data['abs_freq_he4']
-                plus_data = spectra_data['he4_plus']
-                minus_data = spectra_data['he4_minus']
-                pi_data = spectra_data['he4_pi']
-
-            df = pd.DataFrame({
-                'frequency_offset_ghz': freq_data,
-                'absolute_freq_ghz': abs_freq,
-                'wavelength_nm': 299792458.0 / abs_freq,
-                'sigma_plus': plus_data,
-                'sigma_minus': minus_data,
-                'pi': pi_data
-            })
-
-            csv = df.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv",
-                mime="text/csv"
-            )
-
-    # Footer
     st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center; color: gray; font-size: 12px;'>
-    Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation and frontend by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("""...""", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

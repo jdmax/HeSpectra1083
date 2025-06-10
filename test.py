@@ -407,99 +407,119 @@ def main():
 
     st.sidebar.markdown("---")
     with st.sidebar.expander("ℹ️ Information"):
-        st.markdown("""...""")  # Omitted for brevity
+        st.markdown("""
+                **Parameters:**
+                - **B Field**: 0.01 - 10.0 Tesla
+                - **Temperature**: 77 - 1000 Kelvin
+                - **Doppler Width**: ∝ √(T/300)
 
-    col_main, col_info = st.columns([3, 1])
-    with col_main:
-        st.markdown(f"""
-        **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
-        """)
-        with st.spinner('Calculating spectra...'):
-            calculator = get_calculator()
-            full_results = calculator.calculate_full_results(B_field, temperature)
-            spectra_data = full_results['spectra_data']
+                **Polarizations:**
+                - **σ+**: Right circular polarization
+                - **σ-**: Left circular polarization  
+                - **π**: Linear polarization
 
-            selected_frequency, selected_wavelength = None, None
-            selected_transition_group, pol_color = None, 'grey'
+                **Physics:**
+                - Zeeman splitting in magnetic field
+                - Hyperfine structure included
+                - Doppler broadening from temperature
 
-            if st.session_state.isotope == 'He3':
-                transitions = full_results['transitions']['he3']
-            else:
-                transitions = full_results['transitions']['he4']
+                **Transitions Table:**
+                - Groups transitions within 2 GHz
+                - Shows average frequencies and wavelengths
+                - Lists all transitions in each group
+                """)
 
-            df_transitions = create_transitions_table(
-                transitions, st.session_state.isotope,
-                full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
-                full_results['energy_offsets']['he4_offset'], calculator.c1_ghz)
+    #col_main, col_info = st.columns([3, 1])
+    #with col_main:
+    st.markdown(f"""
+    **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
+    """)
+    with st.spinner('Calculating spectra...'):
+        calculator = get_calculator()
+        full_results = calculator.calculate_full_results(B_field, temperature)
+        spectra_data = full_results['spectra_data']
 
-            if st.session_state.show_transitions and 'transitions_df_select' in st.session_state:
-                if st.session_state.transitions_df_select['selection']['rows']:
-                    selected_row_index = st.session_state.transitions_df_select['selection']['rows'][0]
-                    if selected_row_index < len(df_transitions):
-                        selected_row = df_transitions.iloc[selected_row_index]
-                        selected_frequency = float(selected_row['Average Relative Frequency (GHz)'])
-                        selected_wavelength = float(selected_row['Average Wavelength (nm)'])
-                        selected_transition_group = {
-                            'lower': selected_row['ind_lower_list'], 'upper': selected_row['ind_upper_list']
-                        }
-                        pol_color = {'σ+': 'blue', 'σ-': 'red', 'π': 'green'}.get(selected_row['Polarization'], 'grey')
+        selected_frequency, selected_wavelength = None, None
+        selected_transition_group, pol_color = None, 'grey'
 
-            fig = create_plotly_figure(
-                spectra_data, st.session_state.isotope, st.session_state.x_axis_type,
-                B_field, temperature, selected_frequency, selected_wavelength)
-            st.plotly_chart(fig, use_container_width=True)
-
-            if st.session_state.show_transitions:
-                st.markdown("---")
-                col_table, col_diagram = st.columns(2)
-                with col_table:
-                    st.subheader("Transitions Table")
-                    st.markdown("*Select a row to highlight the transition group.*")
-                    st.dataframe(
-                        df_transitions, key="transitions_df_select", on_select="rerun",
-                        selection_mode="single-row", use_container_width=True, hide_index=True,
-                        column_config={
-                            "Polarization": st.column_config.TextColumn("Polarization", width="small"),
-                            "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
-                            "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
-                            "Transitions in Group": st.column_config.TextColumn("Transitions"),
-                            "Group Intensity": st.column_config.TextColumn("Intensity"),
-                            "ind_lower_list": None, "ind_upper_list": None})
-                with col_diagram:
-                    st.subheader("Energy Level Diagram")
-                    st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
-                    fig_levels = create_energy_level_diagram(
-                        full_results['energy_levels'], st.session_state.isotope,
-                        selected_transition_group, pol_color)
-                    st.plotly_chart(fig_levels, use_container_width=True)
-
-    with col_info:
-        st.subheader("Quick Settings")
-        if st.button("🧊 Liquid Nitrogen (77K)"): st.session_state.temp_value = 77; st.rerun()
-        if st.button("🏠 Room Temperature (300K)"): st.session_state.temp_value = 300; st.rerun()
-        if st.button("🔥 High Temperature (800K)"): st.session_state.temp_value = 800; st.rerun()
-        st.markdown("---")
-        if st.button("⚡ Low Field (0.01T)"): st.session_state.b_field_value = 0.01; st.rerun()
-        if st.button("🧲 High Field (1T)"): st.session_state.b_field_value = 1.0; st.rerun()
-        if st.button("🚀 Higher Field (5T)"): st.session_state.b_field_value = 5.0; st.rerun()
-        st.markdown("---")
-
-        st.subheader("Export Data")
         if st.session_state.isotope == 'He3':
-            freq_data, abs_freq = spectra_data['freq_range'] - 40, spectra_data['abs_freq_he3']
-            plus_data, minus_data, pi_data = spectra_data['he3_plus'], spectra_data['he3_minus'], spectra_data['he3_pi']
+            transitions = full_results['transitions']['he3']
         else:
-            freq_data, abs_freq = spectra_data['freq_range'], spectra_data['abs_freq_he4']
-            plus_data, minus_data, pi_data = spectra_data['he4_plus'], spectra_data['he4_minus'], spectra_data['he4_pi']
-        df_download = pd.DataFrame({
-            'frequency_offset_ghz': freq_data, 'absolute_freq_ghz': abs_freq,
-            'wavelength_nm': (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq.any() != 0 else 0,
-            'sigma_plus': plus_data, 'sigma_minus': minus_data, 'pi': pi_data
-        })
-        csv = df_download.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📊 Download Spectra CSV", data=csv,
-            file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
+            transitions = full_results['transitions']['he4']
+
+        df_transitions = create_transitions_table(
+            transitions, st.session_state.isotope,
+            full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
+            full_results['energy_offsets']['he4_offset'], calculator.c1_ghz)
+
+        if st.session_state.show_transitions and 'transitions_df_select' in st.session_state:
+            if st.session_state.transitions_df_select['selection']['rows']:
+                selected_row_index = st.session_state.transitions_df_select['selection']['rows'][0]
+                if selected_row_index < len(df_transitions):
+                    selected_row = df_transitions.iloc[selected_row_index]
+                    selected_frequency = float(selected_row['Average Relative Frequency (GHz)'])
+                    selected_wavelength = float(selected_row['Average Wavelength (nm)'])
+                    selected_transition_group = {
+                        'lower': selected_row['ind_lower_list'], 'upper': selected_row['ind_upper_list']
+                    }
+                    pol_color = {'σ+': 'blue', 'σ-': 'red', 'π': 'green'}.get(selected_row['Polarization'], 'grey')
+
+        fig = create_plotly_figure(
+            spectra_data, st.session_state.isotope, st.session_state.x_axis_type,
+            B_field, temperature, selected_frequency, selected_wavelength)
+        st.plotly_chart(fig, use_container_width=True)
+
+        if st.session_state.show_transitions:
+            st.markdown("---")
+            col_table, col_diagram = st.columns(2)
+            with col_table:
+                st.subheader("Transitions Table")
+                st.markdown("*Select a row to highlight the transition group.*")
+                st.dataframe(
+                    df_transitions, key="transitions_df_select", on_select="rerun",
+                    selection_mode="single-row", use_container_width=True, hide_index=True,
+                    column_config={
+                        "Polarization": st.column_config.TextColumn("Polarization", width="small"),
+                        "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
+                        "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
+                        "Transitions in Group": st.column_config.TextColumn("Transitions"),
+                        "Group Intensity": st.column_config.TextColumn("Intensity"),
+                        "ind_lower_list": None, "ind_upper_list": None})
+            with col_diagram:
+                st.subheader("Energy Level Diagram")
+                st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
+                fig_levels = create_energy_level_diagram(
+                    full_results['energy_levels'], st.session_state.isotope,
+                    selected_transition_group, pol_color)
+                st.plotly_chart(fig_levels, use_container_width=True)
+
+    # with col_info:
+    #     st.subheader("Quick Settings")
+    #     if st.button("🧊 Liquid Nitrogen (77K)"): st.session_state.temp_value = 77; st.rerun()
+    #     if st.button("🏠 Room Temperature (300K)"): st.session_state.temp_value = 300; st.rerun()
+    #     if st.button("🔥 High Temperature (800K)"): st.session_state.temp_value = 800; st.rerun()
+    #     st.markdown("---")
+    #     if st.button("⚡ Low Field (0.01T)"): st.session_state.b_field_value = 0.01; st.rerun()
+    #     if st.button("🧲 High Field (1T)"): st.session_state.b_field_value = 1.0; st.rerun()
+    #     if st.button("🚀 Higher Field (5T)"): st.session_state.b_field_value = 5.0; st.rerun()
+    #     st.markdown("---")
+    #
+    #     st.subheader("Export Data")
+    #     if st.session_state.isotope == 'He3':
+    #         freq_data, abs_freq = spectra_data['freq_range'] - 40, spectra_data['abs_freq_he3']
+    #         plus_data, minus_data, pi_data = spectra_data['he3_plus'], spectra_data['he3_minus'], spectra_data['he3_pi']
+    #     else:
+    #         freq_data, abs_freq = spectra_data['freq_range'], spectra_data['abs_freq_he4']
+    #         plus_data, minus_data, pi_data = spectra_data['he4_plus'], spectra_data['he4_minus'], spectra_data['he4_pi']
+    #     df_download = pd.DataFrame({
+    #         'frequency_offset_ghz': freq_data, 'absolute_freq_ghz': abs_freq,
+    #         'wavelength_nm': (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq.any() != 0 else 0,
+    #         'sigma_plus': plus_data, 'sigma_minus': minus_data, 'pi': pi_data
+    #     })
+    #     csv = df_download.to_csv(index=False).encode('utf-8')
+    #     st.download_button(
+    #         label="📊 Download Spectra CSV", data=csv,
+    #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
     st.markdown("---")
     st.markdown("""...""", unsafe_allow_html=True)
