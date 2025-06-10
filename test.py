@@ -284,18 +284,18 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
             x_S, y_S = mF_S[idx_lower], W_S[idx_lower]
             x_P, y_P = mF_P[idx_upper], W_P[idx_upper]
 
-            # /// START OF MODIFIED CODE ///
-            # The HEAD of the arrow (x,y) should be at the P-state (final state).
-            # The TAIL of the arrow (ax,ay) should be at the S-state (initial state).
-            # The key is to use the correct axis references: 'y' for the top plot, 'y2' for the bottom.
+            # This is the corrected annotation call.
+            # It explicitly tells Plotly to reference the y-axis of the top plot ('y')
+            # for the arrow head and the y-axis of the bottom plot ('y2') for the arrow tail.
             fig.add_annotation(
-                x=x_P, y=y_P,  # Arrow head on P-state
-                ax=x_S, ay=y_S,  # Arrow tail on S-state
-                xref='x', yref='y',  # Head is relative to the first (default) axes
-                axref='x', ayref='y2',  # Tail is relative to the second y-axis
+                x=x_P, y=y_P,           # Arrow head on P-state
+                ax=x_S, ay=y_S,          # Arrow tail on S-state
+                xref='x',                # Head x-coordinate is on the shared x-axis
+                yref='y',                # Head y-coordinate is on the TOP subplot's y-axis
+                axref='x',               # Tail x-coordinate is on the shared x-axis
+                ayref='y2',              # Tail y-coordinate is on the BOTTOM subplot's y-axis
                 showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1.5, arrowcolor=pol_color
             )
-            # /// END OF MODIFIED CODE ///
 
     # 6. Configure layout and axes
     y_min_P, y_max_P = (np.min(W_P), np.max(W_P)) if len(W_P) > 0 else (0, 1)

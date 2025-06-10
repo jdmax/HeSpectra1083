@@ -566,7 +566,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: gray; font-size: 12px;'>
-    Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
+    Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation and frontend by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
     </div>
     """, unsafe_allow_html=True)
 
