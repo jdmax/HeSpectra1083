@@ -219,7 +219,7 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
 
     # Update layout
     fig.update_layout(
-        title=f'{isotope} Spectra at B = {B_field:.2f} T, T = {temperature:.0f} K',
+        title=f'{isotope} Spectra at B = {B_field:.4f} T, T = {temperature:.0f} K',
         xaxis_title=x_label,
         yaxis_title='Intensity',
         template='plotly_white',
@@ -350,10 +350,10 @@ def main():
     col1, col2 = st.sidebar.columns(2)
     with col1:
         B_field_slider = st.slider(
-            "B Field (T)", 0.01, 7.0, st.session_state.b_field_value, 0.01, key="b_slider")
+            "B Field (T)", 0.0001, 7.0, st.session_state.b_field_value, 0.01, key="b_slider")
     with col2:
         B_field_input = st.number_input(
-            "B (T)", 0.01, 10.0, st.session_state.b_field_value, 0.01, "%.3f", key="b_input")
+            "B (T)", 0.0001, 10.0, st.session_state.b_field_value, 0.01, "%.4f", key="b_input")
 
     if B_field_slider != st.session_state.b_field_value:
         st.session_state.b_field_value = B_field_slider;
@@ -405,7 +405,7 @@ def main():
     with st.sidebar.expander("Further Information"):
         st.markdown("""
                 **Parameters:**
-                - **B Field**: 0.01 - 10.0 Tesla
+                - **B Field**: 0.0001 - 10.0 Tesla
                 - **Temperature**: 77 - 1000 Kelvin
                 - **Doppler Width**: ∝ √(T/300)
 
