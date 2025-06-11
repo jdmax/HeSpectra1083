@@ -212,9 +212,9 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
             x=x_position,
             line_width=2,
             line_dash="dash",
-            line_color="orange",
-            annotation_text="Selected",
-            annotation_position="top right"
+            line_color="orange"#,
+            #annotation_text="Selected",
+            #annotation_position="top right"
         )
 
     # Update layout
@@ -475,7 +475,7 @@ def main():
             col_table, col_diagram = st.columns(2)
             with col_table:
                 st.subheader("Transitions Table")
-                st.markdown("*Select a row to highlight the transition group.*")
+                st.markdown("*Select a row to highlight a group of transitions.*")
                 st.dataframe(
                     df_transitions, key="transitions_df_select", on_select="rerun", height=400,
                     selection_mode="single-row", use_container_width=True, hide_index=True,
