@@ -341,7 +341,6 @@ def main():
     if 'temp_value' not in st.session_state: st.session_state.temp_value = 300
     if 'isotope' not in st.session_state: st.session_state.isotope = 'He3'
     if 'x_axis_type' not in st.session_state: st.session_state.x_axis_type = 'Frequency Offset'
-    if 'show_transitions' not in st.session_state: st.session_state.show_transitions = True
 
     st.title("Helium 1083 nm Line Calculator")
 
@@ -397,10 +396,6 @@ def main():
         index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1, key="x_axis_radio")
     if x_axis_type != st.session_state.x_axis_type: st.session_state.x_axis_type = x_axis_type
 
-    show_transitions = st.sidebar.checkbox(
-        "Show Transitions Table & Diagram", value=st.session_state.show_transitions, key="show_transitions_checkbox")
-    if show_transitions != st.session_state.show_transitions: st.session_state.show_transitions = show_transitions
-
     st.sidebar.markdown("---")
 
     st.sidebar.markdown("""
@@ -453,7 +448,7 @@ def main():
             full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
             full_results['energy_offsets']['he4_offset'], calculator.c1_ghz)
 
-        if st.session_state.show_transitions and 'transitions_df_select' in st.session_state:
+        if 'transitions_df_select' in st.session_state:
             if st.session_state.transitions_df_select['selection']['rows']:
                 selected_row_index = st.session_state.transitions_df_select['selection']['rows'][0]
                 if selected_row_index < len(df_transitions):
@@ -470,29 +465,28 @@ def main():
             B_field, temperature, selected_frequency, selected_wavelength)
         st.plotly_chart(fig, use_container_width=True)
 
-        if st.session_state.show_transitions:
-            #st.markdown("---")
-            col_table, col_diagram = st.columns(2)
-            with col_table:
-                st.subheader("Transitions Table")
-                st.markdown("*Select a row to highlight a group of transitions.*")
-                st.dataframe(
-                    df_transitions, key="transitions_df_select", on_select="rerun", height=400,
-                    selection_mode="single-row", use_container_width=True, hide_index=True,
-                    column_config={
-                        "Polarization": st.column_config.TextColumn("Polarization", width="small"),
-                        "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
-                        "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
-                        "Transitions in Group": st.column_config.TextColumn("Transitions"),
-                        "Group Intensity": st.column_config.TextColumn("Intensity"),
-                        "ind_lower_list": None, "ind_upper_list": None})
-            with col_diagram:
-                st.subheader("Energy Level Diagram")
-                #st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
-                fig_levels = create_energy_level_diagram(
-                    full_results['energy_levels'], st.session_state.isotope,
-                    selected_transition_group, pol_color)
-                st.plotly_chart(fig_levels, use_container_width=True)
+        #st.markdown("---")
+        col_table, col_diagram = st.columns(2)
+        with col_table:
+            st.subheader("Transitions Table")
+            st.markdown("*Select a row to highlight a group of transitions.*")
+            st.dataframe(
+                df_transitions, key="transitions_df_select", on_select="rerun", height=400,
+                selection_mode="single-row", use_container_width=True, hide_index=True,
+                column_config={
+                    "Polarization": st.column_config.TextColumn("Polarization", width="small"),
+                    "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
+                    "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
+                    "Transitions in Group": st.column_config.TextColumn("Transitions"),
+                    "Group Intensity": st.column_config.TextColumn("Intensity"),
+                    "ind_lower_list": None, "ind_upper_list": None})
+        with col_diagram:
+            st.subheader("Energy Level Diagram")
+            #st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
+            fig_levels = create_energy_level_diagram(
+                full_results['energy_levels'], st.session_state.isotope,
+                selected_transition_group, pol_color)
+            st.plotly_chart(fig_levels, use_container_width=True)
 
     # with col_info:
     #     st.subheader("Quick Settings")

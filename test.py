@@ -9,7 +9,6 @@ To run: "streamlit run helium_spectra_ui.py"
 
 import streamlit as st
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 from helium_spectra_calc import HeliumSpectraCalculator
@@ -213,9 +212,9 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
             x=x_position,
             line_width=2,
             line_dash="dash",
-            line_color="orange",
-            annotation_text="Selected",
-            annotation_position="top right"
+            line_color="orange"#,
+            #annotation_text="Selected",
+            #annotation_position="top right"
         )
 
     # Update layout
@@ -224,7 +223,7 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
         xaxis_title=x_label,
         yaxis_title='Intensity',
         template='plotly_white',
-        height=600,
+        height=500,
         showlegend=True,
         legend=dict(
             yanchor="top",
@@ -274,14 +273,14 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
     for i in range(len(W_P)):
         mf, energy = mF_P[i], W_P[i] + P_OFFSET
         fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
-                                 line_color='black', showlegend=False))
+                                 line_color='orange', showlegend=False))
         fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_P}{to_subscript(str(i + 1))}",
                            showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
 
     for i in range(len(W_S)):
         mf, energy = mF_S[i], W_S[i]
         fig.add_trace(go.Scatter(x=[mf - line_width / 2, mf + line_width / 2], y=[energy, energy], mode='lines',
-                                 line_color='black', showlegend=False))
+                                 line_color='purple', showlegend=False))
         fig.add_annotation(x=mf + line_width / 2, y=energy, text=f" {label_S}{to_subscript(str(i + 1))}",
                            showarrow=False, xanchor='left', yanchor='middle', font=dict(size=10))
 
@@ -314,8 +313,9 @@ def create_energy_level_diagram(energy_levels, isotope, selected_transition_grou
         final_tickvals.extend(p_plot_tickvals)
         final_ticktext.extend([f'{int(round(v / 10) * 10)}' for v in p_original_tickvals])  # Rounded labels
 
-    fig.update_layout(title="Energy Level Diagram", height=700, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
+    fig.update_layout(height=500, showlegend=False, plot_bgcolor='rgba(0,0,0,0)',
                       paper_bgcolor='rgba(0,0,0,0)')
+    fig.update_layout(margin=dict(t=0, l=0, r=0, b=0))
     fig.update_xaxes(title_text="Magnetic Quantum Number m_F", tickmode='array', tickvals=mF_values, ticktext=mF_labels)
     fig.update_yaxes(title_text="Relative Energy (GHz)", range=y_range, showgrid=True, tickvals=final_tickvals,
                      ticktext=final_ticktext)
@@ -341,16 +341,11 @@ def main():
     if 'temp_value' not in st.session_state: st.session_state.temp_value = 300
     if 'isotope' not in st.session_state: st.session_state.isotope = 'He3'
     if 'x_axis_type' not in st.session_state: st.session_state.x_axis_type = 'Frequency Offset'
-    if 'show_transitions' not in st.session_state: st.session_state.show_transitions = True
 
     st.title("Helium 1083 nm Line Calculator")
-    st.markdown("""
-    Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
-    Adjust magnetic field and temperature to see real-time changes in the spectra. Accurate only at gas pressure up to a few mbar, above which additional corrections are needed.
-    """)
 
     # Sidebar controls
-    st.sidebar.header("Parameters")
+    #st.sidebar.header("Parameters")
     st.sidebar.subheader("Magnetic Field")
     col1, col2 = st.sidebar.columns(2)
     with col1:
@@ -358,7 +353,7 @@ def main():
             "B Field (T)", 0.01, 7.0, st.session_state.b_field_value, 0.01, key="b_slider")
     with col2:
         B_field_input = st.number_input(
-            "Exact B (T)", 0.01, 10.0, st.session_state.b_field_value, 0.01, "%.3f", key="b_input")
+            "B (T)", 0.01, 10.0, st.session_state.b_field_value, 0.01, "%.3f", key="b_input")
 
     if B_field_slider != st.session_state.b_field_value:
         st.session_state.b_field_value = B_field_slider;
@@ -375,7 +370,7 @@ def main():
             "Temperature (K)", 77, 1000, st.session_state.temp_value, 1, key="temp_slider")
     with col4:
         temp_input = st.number_input(
-            "Exact T (K)", 77, 1000, st.session_state.temp_value, 1, "%d", key="temp_input")
+            "T (K)", 77, 1000, st.session_state.temp_value, 1, "%d", key="temp_input")
 
     if temp_slider != st.session_state.temp_value:
         st.session_state.temp_value = temp_slider;
@@ -401,12 +396,13 @@ def main():
         index=0 if st.session_state.x_axis_type == 'Frequency Offset' else 1, key="x_axis_radio")
     if x_axis_type != st.session_state.x_axis_type: st.session_state.x_axis_type = x_axis_type
 
-    show_transitions = st.sidebar.checkbox(
-        "Show Transitions Table & Diagram", value=st.session_state.show_transitions, key="show_transitions_checkbox")
-    if show_transitions != st.session_state.show_transitions: st.session_state.show_transitions = show_transitions
-
     st.sidebar.markdown("---")
-    with st.sidebar.expander("ℹ️ Information"):
+
+    st.sidebar.markdown("""
+    Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for ³He and ⁴He isotopes.
+    Adjust magnetic field and temperature to see real-time changes in the spectra. Accurate only at gas pressure up to a few mbar, above which additional corrections are needed.
+    """)
+    with st.sidebar.expander("Further Information"):
         st.markdown("""
                 **Parameters:**
                 - **B Field**: 0.01 - 10.0 Tesla
@@ -431,9 +427,9 @@ def main():
 
     #col_main, col_info = st.columns([3, 1])
     #with col_main:
-    st.markdown(f"""
-    **Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
-    """)
+    #st.markdown(f"""
+    #**Current Parameters:** B = {B_field:.3f} T, T = {temperature:.0f} K, Isotope = {st.session_state.isotope}
+    #""")
     with st.spinner('Calculating spectra...'):
         calculator = get_calculator()
         full_results = calculator.calculate_full_results(B_field, temperature)
@@ -452,7 +448,7 @@ def main():
             full_results['energy_offsets']['eC1'] if st.session_state.isotope == 'He3' else
             full_results['energy_offsets']['he4_offset'], calculator.c1_ghz)
 
-        if st.session_state.show_transitions and 'transitions_df_select' in st.session_state:
+        if 'transitions_df_select' in st.session_state:
             if st.session_state.transitions_df_select['selection']['rows']:
                 selected_row_index = st.session_state.transitions_df_select['selection']['rows'][0]
                 if selected_row_index < len(df_transitions):
@@ -469,29 +465,28 @@ def main():
             B_field, temperature, selected_frequency, selected_wavelength)
         st.plotly_chart(fig, use_container_width=True)
 
-        if st.session_state.show_transitions:
-            st.markdown("---")
-            col_table, col_diagram = st.columns(2)
-            with col_table:
-                st.subheader("Transitions Table")
-                st.markdown("*Select a row to highlight the transition group.*")
-                st.dataframe(
-                    df_transitions, key="transitions_df_select", on_select="rerun",
-                    selection_mode="single-row", use_container_width=True, hide_index=True,
-                    column_config={
-                        "Polarization": st.column_config.TextColumn("Polarization", width="small"),
-                        "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
-                        "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
-                        "Transitions in Group": st.column_config.TextColumn("Transitions"),
-                        "Group Intensity": st.column_config.TextColumn("Intensity"),
-                        "ind_lower_list": None, "ind_upper_list": None})
-            with col_diagram:
-                st.subheader("Energy Level Diagram")
-                st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
-                fig_levels = create_energy_level_diagram(
-                    full_results['energy_levels'], st.session_state.isotope,
-                    selected_transition_group, pol_color)
-                st.plotly_chart(fig_levels, use_container_width=True)
+        #st.markdown("---")
+        col_table, col_diagram = st.columns(2)
+        with col_table:
+            st.subheader("Transitions Table")
+            st.markdown("*Select a row to highlight a group of transitions.*")
+            st.dataframe(
+                df_transitions, key="transitions_df_select", on_select="rerun", height=400,
+                selection_mode="single-row", use_container_width=True, hide_index=True,
+                column_config={
+                    "Polarization": st.column_config.TextColumn("Polarization", width="small"),
+                    "Average Relative Frequency (GHz)": st.column_config.TextColumn("Avg Rel Freq (GHz)"),
+                    "Average Wavelength (nm)": st.column_config.TextColumn("Avg λ (nm)"),
+                    "Transitions in Group": st.column_config.TextColumn("Transitions"),
+                    "Group Intensity": st.column_config.TextColumn("Intensity"),
+                    "ind_lower_list": None, "ind_upper_list": None})
+        with col_diagram:
+            st.subheader("Energy Level Diagram")
+            #st.markdown("*Shows sublevels vs. m_F and selected transitions.*")
+            fig_levels = create_energy_level_diagram(
+                full_results['energy_levels'], st.session_state.isotope,
+                selected_transition_group, pol_color)
+            st.plotly_chart(fig_levels, use_container_width=True)
 
     # with col_info:
     #     st.subheader("Quick Settings")
@@ -521,9 +516,11 @@ def main():
     #         label="📊 Download Spectra CSV", data=csv,
     #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
-    st.markdown("---")
-    st.markdown("""...""", unsafe_allow_html=True)
-
+    #st.markdown("---")
+    st.markdown("""<div style='text-align: center; color: gray; font-size: 12px;'>
+       Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
+       </div>
+       """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
