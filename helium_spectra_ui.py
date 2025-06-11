@@ -471,7 +471,7 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
         if st.session_state.show_transitions:
-            st.markdown("---")
+            #st.markdown("---")
             col_table, col_diagram = st.columns(2)
             with col_table:
                 st.subheader("Transitions Table")
@@ -522,7 +522,7 @@ def main():
     #         label="📊 Download Spectra CSV", data=csv,
     #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
-    st.markdown("---")
+    #st.markdown("---")
 
 if __name__ == "__main__":
     main()
