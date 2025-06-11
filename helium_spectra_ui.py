@@ -523,6 +523,11 @@ def main():
     #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
     #st.markdown("---")
+    st.markdown(
+       <div style='text-align: center; color: gray; font-size: 12px;'>
+       Based on original Fortran code by P.J. Nacher, <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a> <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a> | Python translation by J. Maxwell <a href="https://www.jlab.org">Jefferson Laboratory</a>, 2025
+       </div>
+       """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
