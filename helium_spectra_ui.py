@@ -103,14 +103,14 @@ def create_transitions_table(transitions, isotope, energy_offset, c1_ghz):
             avg_energy = np.mean(group['energies'])
             total_intensity = np.sum(group['forces'])
 
-            # Calculate absolute frequency and wavelength
-            if isotope == 'He3':
-                abs_freq = c1_ghz + avg_energy - 40
-            else:  # He4
-                abs_freq = c1_ghz + avg_energy
+            # Calculate average absolute frequency from the average relative frequency
+            avg_abs_freq = c1_ghz + avg_energy
 
-            # Avoid division by zero for frequency
-            avg_wavelength = (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq != 0 else 0
+            # Calculate average wavelength from the average absolute frequency
+            if avg_abs_freq != 0:
+                avg_wavelength = 299792458.0 / avg_abs_freq
+            else:
+                avg_wavelength = 0
 
             # Format transition names
             transition_names = []
@@ -170,7 +170,7 @@ def create_plotly_figure(spectra_data, isotope, x_axis_type, B_field, temperatur
         # Avoid division by zero
         non_zero_freq = abs_freq != 0
         x_data = np.full_like(abs_freq, fill_value=np.nan, dtype=float)
-        x_data[non_zero_freq] = (299792458.0 / (abs_freq[non_zero_freq] * 1e9)) * 1e9
+        x_data[non_zero_freq] = (299792458.0 / abs_freq[non_zero_freq])
         x_label = 'Wavelength (nm)'
 
     # Create plotly figure

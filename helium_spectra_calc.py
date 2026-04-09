@@ -339,7 +339,6 @@ class HeliumSpectraCalculator:
             r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4
         )
 
-        # /// START OF MODIFIED CODE ///
         # Return comprehensive results
         return {
             'spectra_data': spectra_data,
@@ -364,7 +363,6 @@ class HeliumSpectraCalculator:
             'doppler_widths': {'D3': D3, 'D4': D4},
             'energy_offsets': {'eC1': eC1, 'he4_offset': he4_offset}
         }
-        # /// END OF MODIFIED CODE ///
 
     def calculate_spectra(self, B, Temp=300):
         """
