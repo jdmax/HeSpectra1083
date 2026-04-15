@@ -488,33 +488,6 @@ def main():
                 selected_transition_group, pol_color)
             st.plotly_chart(fig_levels, use_container_width=True)
 
-    # with col_info:
-    #     st.subheader("Quick Settings")
-    #     if st.button("🧊 Liquid Nitrogen (77K)"): st.session_state.temp_value = 77; st.rerun()
-    #     if st.button("🏠 Room Temperature (300K)"): st.session_state.temp_value = 300; st.rerun()
-    #     if st.button("🔥 High Temperature (800K)"): st.session_state.temp_value = 800; st.rerun()
-    #     st.markdown("---")
-    #     if st.button("⚡ Low Field (0.01T)"): st.session_state.b_field_value = 0.01; st.rerun()
-    #     if st.button("🧲 High Field (1T)"): st.session_state.b_field_value = 1.0; st.rerun()
-    #     if st.button("🚀 Higher Field (5T)"): st.session_state.b_field_value = 5.0; st.rerun()
-    #     st.markdown("---")
-    #
-    #     st.subheader("Export Data")
-    #     if st.session_state.isotope == 'He3':
-    #         freq_data, abs_freq = spectra_data['freq_range'] - 40, spectra_data['abs_freq_he3']
-    #         plus_data, minus_data, pi_data = spectra_data['he3_plus'], spectra_data['he3_minus'], spectra_data['he3_pi']
-    #     else:
-    #         freq_data, abs_freq = spectra_data['freq_range'], spectra_data['abs_freq_he4']
-    #         plus_data, minus_data, pi_data = spectra_data['he4_plus'], spectra_data['he4_minus'], spectra_data['he4_pi']
-    #     df_download = pd.DataFrame({
-    #         'frequency_offset_ghz': freq_data, 'absolute_freq_ghz': abs_freq,
-    #         'wavelength_nm': (299792458.0 / (abs_freq * 1e9)) * 1e9 if abs_freq.any() != 0 else 0,
-    #         'sigma_plus': plus_data, 'sigma_minus': minus_data, 'pi': pi_data
-    #     })
-    #     csv = df_download.to_csv(index=False).encode('utf-8')
-    #     st.download_button(
-    #         label="📊 Download Spectra CSV", data=csv,
-    #         file_name=f"{st.session_state.isotope}_B{B_field:.2f}T_T{temperature}K.csv", mime="text/csv")
 
     #st.markdown("---")
     st.markdown("""<div style='text-align: center; color: gray; font-size: 12px;'>
