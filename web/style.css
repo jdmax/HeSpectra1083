@@ -1,18 +1,55 @@
-/* Dark theme. The series colours live in app.js (THEME/SERIES) because Plotly
-   needs literal values; the tokens here are the same palette for the chrome.
-   Palette steps were validated against the --bg surface for lightness band,
-   chroma, CVD separation and contrast. */
+/* The series colours live in app.js (PALETTE) because Plotly needs literal
+   values; the tokens here are the same palettes for the page chrome. Each
+   mode's steps were validated against its own --bg surface for lightness
+   band, chroma, CVD separation and contrast.
+
+   Default is whatever the OS asks for; an explicit choice from the toggle
+   sets data-theme on <html> and wins over it in both directions. */
 :root {
+  color-scheme: light;
+
+  --bg: #ffffff;            /* page, and the surface the charts sit on */
+  --raised: #f0f2f6;        /* sidebar, table header */
+  --text: #1a1a19;
+  --muted: #52514e;
+  --border: #d6d9de;
+  --border-soft: #e7e9ed;
+  --accent: #2a78d6;
+  --sel-bg: #eef3fb;
+  --row-hover: #f6f8fa;
+  --error: #c0392b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #15161a;
+    --raised: #1d1f24;
+    --text: #e8e8e5;
+    --muted: #9ea3ad;
+    --border: #2f333c;
+    --border-soft: #24272e;
+    --accent: #3987e5;
+    --sel-bg: #22252c;
+    --row-hover: #1b1e24;
+    --error: #e66767;
+  }
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #15161a;            /* page, and the surface the charts sit on */
-  --raised: #1d1f24;        /* sidebar, table header */
+  --bg: #15161a;
+  --raised: #1d1f24;
   --text: #e8e8e5;
   --muted: #9ea3ad;
   --border: #2f333c;
   --border-soft: #24272e;
   --accent: #3987e5;
   --sel-bg: #22252c;
+  --row-hover: #1b1e24;
+  --error: #e66767;
 }
 
 * { box-sizing: border-box; }
@@ -47,7 +84,7 @@ body {
 .boot-note { color: var(--muted); font-size: 13px; }
 #boot-msg { font-size: 16px; margin-bottom: 4px; }
 #boot.error .spinner { display: none; }
-#boot.error #boot-msg { color: #e66767; white-space: pre-wrap; text-align: left; }
+#boot.error #boot-msg { color: var(--error); white-space: pre-wrap; text-align: left; }
 
 .spinner {
   width: 34px; height: 34px;
@@ -84,6 +121,35 @@ h1 { font-size: 30px; font-weight: 700; margin: 0 0 18px; }
 h2 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
 h2:first-child { margin-top: 0; }
 h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
+
+/* ---------- theme toggle ---------- */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.theme-toggle:hover { border-color: var(--accent); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Glyph is set by app.js, which already knows which mode is showing */
+.theme-icon {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--muted);
+}
 
 /* ---------- controls ---------- */
 
@@ -176,7 +242,7 @@ tbody td {
 }
 
 tbody tr { cursor: pointer; }
-tbody tr:hover { background: #1b1e24; }
+tbody tr:hover { background: var(--row-hover); }
 /* The selected row is marked in its own polarization colour, set inline by
    app.js, so the table and the level-diagram arrows agree. */
 tbody tr.selected { background: var(--sel-bg); }

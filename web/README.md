@@ -109,11 +109,19 @@ and native NumPy builds.
 - The energy level diagram no longer uses the original's
   `margin=dict(t=0,l=0,r=0,b=0)`, which ran the y-axis title into the
   "2³P States" label and clipped the m_F tick labels off the bottom.
-- The page is dark-themed. Series colours are defined once, in `SERIES` and
-  `THEME` at the top of `app.js`, and were validated against the background
-  for lightness band, chroma, colour-vision separation and contrast. The
-  selection marker on the spectra plot is deliberately achromatic so it reads
-  as an annotation rather than a fourth series; selected table rows are marked
-  in their own polarization colour, matching the level-diagram arrows.
+- The page follows the operating system's light/dark setting, and the toggle
+  at the top of the sidebar overrides it. That choice is remembered per
+  browser; until it is used, the OS setting continues to govern, including
+  when it changes while the page is open.
+- Both modes are separately stepped and validated — the dark colours are not
+  the light ones flipped. `PALETTE` at the top of `app.js` holds the chart
+  colours for each mode and `style.css` holds the matching page tokens; the
+  CSS values are set once per mode in `:root`, under a
+  `prefers-color-scheme` block, and under `:root[data-theme="..."]`.
+  Every palette was checked against its own background for lightness band,
+  chroma, colour-vision separation and contrast. The selection marker is
+  achromatic in both modes so it reads as an annotation rather than a fourth
+  series; selected table rows are marked in their own polarization colour,
+  matching the level-diagram arrows.
 - Recalculation costs about 25 ms, so the plots follow the sliders directly
   rather than through a server round trip.

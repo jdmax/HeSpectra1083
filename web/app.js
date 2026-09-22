@@ -18,30 +18,65 @@ const PY_DIR = '/app';
 const CALC_PATHS = ['helium_spectra_calc.py', '../helium_spectra_calc.py'];
 const BRIDGE_PATHS = ['bridge.py'];
 
-// Series colours, validated against the --bg surface in style.css for
-// lightness band, chroma, CVD separation and contrast.
-const SERIES = {
-  plus: { label: 'σ+', color: '#3987e5' },
-  minus: { label: 'σ-', color: '#e66767' },
-  pi: { label: 'π', color: '#008300' },
+const SERIES_KEYS = ['plus', 'minus', 'pi'];
+const SERIES_LABELS = { plus: 'σ+', minus: 'σ-', pi: 'π' };
+
+// Each mode is stepped for its own surface rather than reused from the other,
+// and validated there for lightness band, chroma, colour-vision separation and
+// contrast. Plotly.js ships no named templates, so the chart chrome is literal
+// too; these values mirror the tokens in style.css.
+//
+// The marker is achromatic in both modes on purpose: it is an annotation, not
+// a fourth series, and every chromatic candidate collided with red or green.
+const PALETTE = {
+  light: {
+    series: { plus: '#2a78d6', minus: '#e66767', pi: '#006d00' },
+    text: '#1a1a19',
+    muted: '#52514e',
+    grid: '#d6d9de',
+    levelUpper: '#eb6834',   // 2³P states
+    levelLower: '#4a3aa7',   // 2³S states
+    marker: '#52514e',
+  },
+  dark: {
+    series: { plus: '#3987e5', minus: '#e66767', pi: '#008300' },
+    text: '#e8e8e5',
+    muted: '#9ea3ad',
+    grid: '#2f333c',
+    levelUpper: '#d95926',
+    levelLower: '#9085e9',
+    marker: '#c3c2b7',
+  },
 };
+
+const THEME_KEY = 'hespectra-theme';
+
+/** The viewer's explicit choice, or null while the OS setting governs. */
+function storedTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch (err) {
+    return null;   // private windows and blocked site data
+  }
+}
+
+function activeTheme() {
+  return storedTheme()
+    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+}
+
+/** Colours for the mode currently showing. */
+function palette() {
+  return PALETTE[activeTheme()];
+}
 
 // bridge.py labels each table row with one of the same symbols
-const COLOR_BY_POL = Object.fromEntries(
-  Object.values(SERIES).map(s => [s.label, s.color]));
-
-// Chart chrome. Plotly.js ships no named templates, so these are literal
-// values mirroring the tokens in style.css.
-const THEME = {
-  text: '#e8e8e5',
-  muted: '#9ea3ad',
-  grid: '#2f333c',
-  levelUpper: '#d95926',   // 2³P states
-  levelLower: '#9085e9',   // 2³S states
-  // Achromatic on purpose: the marker is an annotation, not a fourth series,
-  // and must not be mistaken for one of the curves it sits among.
-  marker: '#c3c2b7',
-};
+function colorForPol(symbol) {
+  const pal = palette();
+  const key = SERIES_KEYS.find(k => SERIES_LABELS[k] === symbol);
+  return key ? pal.series[key] : pal.muted;
+}
 
 const PLOT_CONFIG = { responsive: true, displaylogo: false };
 
@@ -141,6 +176,53 @@ function bindControls() {
       recompute();
     });
   }
+
+  bindTheme();
+}
+
+/* ----------------------------------------------------------------- theme */
+
+function bindTheme() {
+  const button = document.getElementById('theme-toggle');
+
+  button.addEventListener('click', () => {
+    const next = activeTheme() === 'dark' ? 'light' : 'dark';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch (err) {
+      /* Not persisted, but the attribute below still applies it */
+    }
+    document.documentElement.dataset.theme = next;
+    applyTheme();
+  });
+
+  // Follow the OS while the viewer has expressed no preference of their own
+  window.matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', () => {
+      if (!storedTheme()) applyTheme();
+    });
+
+  const stored = storedTheme();
+  if (stored) document.documentElement.dataset.theme = stored;
+  applyTheme();
+}
+
+/** Sync the button to the mode showing, and repaint the charts in it. */
+function applyTheme() {
+  const dark = activeTheme() === 'dark';
+  document.querySelector('.theme-icon').textContent = dark ? '☾' : '☀';
+  document.getElementById('theme-label').textContent =
+    dark ? 'Dark theme' : 'Light theme';
+  document.getElementById('theme-toggle').setAttribute(
+    'aria-label', `Theme: ${dark ? 'dark' : 'light'}. Switch to ${dark ? 'light' : 'dark'}.`);
+
+  // Colours are baked into the Plotly specs, so the charts need redrawing.
+  // No recalculation: the numbers are unchanged.
+  if (state.data) {
+    drawSpectra();
+    drawTable();
+    drawLevels();
+  }
 }
 
 function linkNumeric(sliderId, inputId, key, format) {
@@ -197,11 +279,11 @@ function selectedRow() {
 
 function drawSpectra() {
   const s = state.data.spectra;
-  const line = color => ({ color, width: 2 });
+  const THEME = palette();
 
-  const traces = ['plus', 'minus', 'pi'].map(key => ({
+  const traces = SERIES_KEYS.map(key => ({
     x: s.x, y: s[key], mode: 'lines',
-    name: SERIES[key].label, line: line(SERIES[key].color),
+    name: SERIES_LABELS[key], line: { color: THEME.series[key], width: 2 },
   }));
 
   const shapes = [];
@@ -246,6 +328,7 @@ function drawSpectra() {
 }
 
 function drawLevels() {
+  const THEME = palette();
   const lv = state.data.levels;
   const half = lv.line_width / 2;
 
@@ -281,7 +364,7 @@ function drawLevels() {
         x: to.mf, y: to.e, ax: from.mf, ay: from.e,
         xref: 'x', yref: 'y', axref: 'x', ayref: 'y',
         showarrow: true, arrowhead: 2, arrowsize: 1,
-        arrowwidth: 1.5, arrowcolor: COLOR_BY_POL[row.polarization],
+        arrowwidth: 1.5, arrowcolor: colorForPol(row.polarization),
       });
     }
   }
@@ -348,7 +431,7 @@ function drawTable() {
       const td = document.createElement('td');
       td.textContent = text;
       if (cls) td.className = cls;
-      if (cls === 'pol') td.style.color = COLOR_BY_POL[row.polarization];
+      if (cls === 'pol') td.style.color = colorForPol(row.polarization);
       tr.appendChild(td);
     }
 
@@ -370,7 +453,7 @@ function markSelectedRow() {
     // Marked in the row's own polarization colour, matching the arrows the
     // selection draws on the level diagram
     tr.style.boxShadow = on
-      ? `inset 3px 0 0 ${COLOR_BY_POL[state.data.table[state.selected].polarization]}`
+      ? `inset 3px 0 0 ${colorForPol(state.data.table[state.selected].polarization)}`
       : '';
   }
 }

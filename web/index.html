@@ -6,6 +6,17 @@
 <title>Helium 1083 nm Line Calculator</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#128300;</text></svg>">
 <link rel="stylesheet" href="style.css">
+<script>
+  // Applies a saved choice before first paint, so a viewer whose OS setting
+  // differs from it never sees a flash of the other theme. app.js repeats this
+  // once it loads; here it only needs to beat the first render.
+  try {
+    var saved = localStorage.getItem('hespectra-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.dataset.theme = saved;
+    }
+  } catch (err) { /* private windows and blocked site data */ }
+</script>
 </head>
 <body>
 
@@ -20,6 +31,11 @@
 
 <div id="app" hidden>
   <aside class="sidebar">
+    <button type="button" id="theme-toggle" class="theme-toggle">
+      <span class="theme-icon" aria-hidden="true"></span>
+      <span id="theme-label">Dark theme</span>
+    </button>
+
     <h2>Magnetic Field</h2>
     <div class="control-row">
       <div class="control">
