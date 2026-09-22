@@ -37,13 +37,27 @@ development.
 
 ## Deploying
 
+### GitHub Pages
+
+`.github/workflows/pages.yml` publishes the site on every push to `master`
+that touches `web/` or `helium_spectra_calc.py`, and can also be run by hand
+from the Actions tab. It calls the same `deploy.sh` used below, so there is
+one definition of what gets deployed.
+
+This needs to be enabled once, in **Settings → Pages → Build and deployment →
+Source: GitHub Actions**. The site is then served at
+<https://jdmax.github.io/HeSpectra1083/>.
+
+### Any other static host
+
 ```sh
 ./deploy.sh ~/public_html/hespectra
 ```
 
 That copies `index.html`, `style.css`, `app.js`, `bridge.py` and
 `helium_spectra_calc.py` into one self-contained directory. No build step, no
-Python process on the server, nothing to keep running.
+Python process on the server, nothing to keep running. The page uses only
+relative paths, so it works at a domain root or under a subdirectory.
 
 ## External dependencies
 
