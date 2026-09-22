@@ -14,8 +14,6 @@ from helium_spectra_calc import HeliumSpectraCalculator
 # c expressed so that (nm) = C_NM_GHZ / (GHz), matching helium_spectra_ui.py
 C_NM_GHZ = 299792458.0
 
-POL_COLORS = {'σ+': 'blue', 'σ-': 'red', 'π': 'green'}
-
 _calculator = None
 
 
@@ -133,8 +131,9 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                 # tied rows come out in a different order on different machines.
                 '_sort': (-round(total_intensity, 12), pol_index,
                           round(avg_energy, 9)),
+                # app.js maps this symbol to the series colour, so the palette
+                # is defined in one place.
                 'polarization': pol_name,
-                'color': POL_COLORS.get(pol_name, 'grey'),
                 # Formatted here so the table, the selection marker and the
                 # original Streamlit app all show identical values.
                 'frequency': f"{avg_energy:.3f}",

@@ -106,9 +106,14 @@ and native NumPy builds.
   `min=0.0001, step=0.01`, which put every stop on the grid 0.0001, 0.0101,
   …, so round values like 4 T were unreachable by dragging. The number box
   still accepts any value from 0.0001 to 10 T.
-- The energy level diagram keeps the original's `margin=dict(t=0,l=0,r=0,b=0)`,
-  so the y-axis title still sits close to the "2³P States" label. Widening
-  `margin` in `drawLevels()` in `app.js` is the one-line fix if that is
-  unwanted.
+- The energy level diagram no longer uses the original's
+  `margin=dict(t=0,l=0,r=0,b=0)`, which ran the y-axis title into the
+  "2³P States" label and clipped the m_F tick labels off the bottom.
+- The page is dark-themed. Series colours are defined once, in `SERIES` and
+  `THEME` at the top of `app.js`, and were validated against the background
+  for lightness band, chroma, colour-vision separation and contrast. The
+  selection marker on the spectra plot is deliberately achromatic so it reads
+  as an annotation rather than a fourth series; selected table rows are marked
+  in their own polarization colour, matching the level-diagram arrows.
 - Recalculation costs about 25 ms, so the plots follow the sliders directly
   rather than through a server round trip.

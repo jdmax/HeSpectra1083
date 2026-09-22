@@ -1,11 +1,18 @@
+/* Dark theme. The series colours live in app.js (THEME/SERIES) because Plotly
+   needs literal values; the tokens here are the same palette for the chrome.
+   Palette steps were validated against the --bg surface for lightness band,
+   chroma, CVD separation and contrast. */
 :root {
-  --bg: #ffffff;
-  --sidebar-bg: #f0f2f6;
-  --text: #262730;
-  --muted: #6b6f76;
-  --border: #d6d9de;
-  --accent: #ff8c00;
-  --sel-bg: #fff3e0;
+  color-scheme: dark;
+
+  --bg: #15161a;            /* page, and the surface the charts sit on */
+  --raised: #1d1f24;        /* sidebar, table header */
+  --text: #e8e8e5;
+  --muted: #9ea3ad;
+  --border: #2f333c;
+  --border-soft: #24272e;
+  --accent: #3987e5;
+  --sel-bg: #22252c;
 }
 
 * { box-sizing: border-box; }
@@ -40,7 +47,7 @@ body {
 .boot-note { color: var(--muted); font-size: 13px; }
 #boot-msg { font-size: 16px; margin-bottom: 4px; }
 #boot.error .spinner { display: none; }
-#boot.error #boot-msg { color: #c0392b; white-space: pre-wrap; text-align: left; }
+#boot.error #boot-msg { color: #e66767; white-space: pre-wrap; text-align: left; }
 
 .spinner {
   width: 34px; height: 34px;
@@ -58,7 +65,8 @@ body {
 
 .sidebar {
   flex: 0 0 320px;
-  background: var(--sidebar-bg);
+  background: var(--raised);
+  border-right: 1px solid var(--border-soft);
   padding: 24px 20px 40px;
   position: sticky;
   top: 0;
@@ -97,9 +105,17 @@ input[type="number"] {
   padding: 5px 7px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg);
+  color: var(--text);
   font: inherit;
   font-size: 14px;
+}
+
+input[type="number"]:focus-visible,
+input[type="range"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .radios {
@@ -145,7 +161,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; }
 thead th {
   position: sticky;
   top: 0;
-  background: var(--sidebar-bg);
+  background: var(--raised);
   text-align: left;
   font-weight: 600;
   padding: 7px 9px;
@@ -155,24 +171,27 @@ thead th {
 
 tbody td {
   padding: 6px 9px;
-  border-bottom: 1px solid #eceef1;
+  border-bottom: 1px solid var(--border-soft);
   white-space: nowrap;
 }
 
 tbody tr { cursor: pointer; }
-tbody tr:hover { background: #f7f8fa; }
-tbody tr.selected { background: var(--sel-bg); box-shadow: inset 3px 0 0 var(--accent); }
+tbody tr:hover { background: #1b1e24; }
+/* The selected row is marked in its own polarization colour, set inline by
+   app.js, so the table and the level-diagram arrows agree. */
+tbody tr.selected { background: var(--sel-bg); }
 
 .col-pol { width: 1%; }
 td.pol { font-weight: 600; }
 
 footer {
   text-align: center;
-  color: gray;
+  color: var(--muted);
   font-size: 12px;
   margin-top: 28px;
 }
-footer a { color: inherit; }
+footer a { color: var(--muted); }
+footer a:hover { color: var(--text); }
 
 @media (max-width: 1100px) {
   .columns { grid-template-columns: 1fr; }
@@ -180,6 +199,6 @@ footer a { color: inherit; }
 
 @media (max-width: 800px) {
   #app { display: block; }
-  .sidebar { position: static; max-height: none; flex-basis: auto; }
+  .sidebar { position: static; max-height: none; flex-basis: auto; border-right: 0; }
   .content { padding: 16px; }
 }

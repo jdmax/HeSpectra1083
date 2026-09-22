@@ -18,7 +18,30 @@ const PY_DIR = '/app';
 const CALC_PATHS = ['helium_spectra_calc.py', '../helium_spectra_calc.py'];
 const BRIDGE_PATHS = ['bridge.py'];
 
-const POL_COLORS = { plus: 'blue', minus: 'red', pi: 'green' };
+// Series colours, validated against the --bg surface in style.css for
+// lightness band, chroma, CVD separation and contrast.
+const SERIES = {
+  plus: { label: 'σ+', color: '#3987e5' },
+  minus: { label: 'σ-', color: '#e66767' },
+  pi: { label: 'π', color: '#008300' },
+};
+
+// bridge.py labels each table row with one of the same symbols
+const COLOR_BY_POL = Object.fromEntries(
+  Object.values(SERIES).map(s => [s.label, s.color]));
+
+// Chart chrome. Plotly.js ships no named templates, so these are literal
+// values mirroring the tokens in style.css.
+const THEME = {
+  text: '#e8e8e5',
+  muted: '#9ea3ad',
+  grid: '#2f333c',
+  levelUpper: '#d95926',   // 2³P states
+  levelLower: '#9085e9',   // 2³S states
+  // Achromatic on purpose: the marker is an annotation, not a fourth series,
+  // and must not be mistaken for one of the curves it sits among.
+  marker: '#c3c2b7',
+};
 
 const PLOT_CONFIG = { responsive: true, displaylogo: false };
 
@@ -176,11 +199,10 @@ function drawSpectra() {
   const s = state.data.spectra;
   const line = color => ({ color, width: 2 });
 
-  const traces = [
-    { x: s.x, y: s.plus, mode: 'lines', name: 'σ+', line: line(POL_COLORS.plus) },
-    { x: s.x, y: s.minus, mode: 'lines', name: 'σ-', line: line(POL_COLORS.minus) },
-    { x: s.x, y: s.pi, mode: 'lines', name: 'π', line: line(POL_COLORS.pi) },
-  ];
+  const traces = ['plus', 'minus', 'pi'].map(key => ({
+    x: s.x, y: s[key], mode: 'lines',
+    name: SERIES[key].label, line: line(SERIES[key].color),
+  }));
 
   const shapes = [];
   const row = selectedRow();
@@ -191,24 +213,30 @@ function drawSpectra() {
     shapes.push({
       type: 'line', xref: 'x', yref: 'paper',
       x0: x, x1: x, y0: 0, y1: 1,
-      line: { color: 'orange', width: 2, dash: 'dash' },
+      line: { color: THEME.marker, width: 2, dash: 'dash' },
     });
   }
 
+  const axis = title => ({
+    title: { text: title },
+    showgrid: true, gridwidth: 1, gridcolor: THEME.grid,
+    zerolinecolor: THEME.grid, linecolor: THEME.grid, tickcolor: THEME.grid,
+  });
+
   const layout = {
     title: { text: state.data.title },
-    xaxis: {
-      title: { text: s.x_label },
-      showgrid: true, gridwidth: 1, gridcolor: 'lightgray',
-    },
-    yaxis: {
-      title: { text: 'Intensity' },
-      showgrid: true, gridwidth: 1, gridcolor: 'lightgray',
-    },
-    template: 'plotly_white',
+    xaxis: axis(s.x_label),
+    yaxis: axis('Intensity'),
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: THEME.text },
+    modebar: { color: THEME.muted, activecolor: THEME.text, bgcolor: 'rgba(0,0,0,0)' },
     height: 500,
     showlegend: true,
-    legend: { yanchor: 'top', y: 0.99, xanchor: 'left', x: 0.01 },
+    legend: {
+      yanchor: 'top', y: 0.99, xanchor: 'left', x: 0.01,
+      bgcolor: 'rgba(0,0,0,0)', font: { color: THEME.text },
+    },
     shapes,
     // Keep pan/zoom while sweeping B and T; reset when the axes change meaning
     uirevision: `${state.isotope}|${state.xAxis}`,
@@ -236,7 +264,8 @@ function drawLevels() {
     for (const level of levels) {
       annotations.push({
         x: level.mf + half, y: level.e, text: level.label,
-        showarrow: false, xanchor: 'left', yanchor: 'middle', font: { size: 10 },
+        showarrow: false, xanchor: 'left', yanchor: 'middle',
+        font: { size: 10, color: THEME.muted },
       });
     }
   }
@@ -252,7 +281,7 @@ function drawLevels() {
         x: to.mf, y: to.e, ax: from.mf, ay: from.e,
         xref: 'x', yref: 'y', axref: 'x', ayref: 'y',
         showarrow: true, arrowhead: 2, arrowsize: 1,
-        arrowwidth: 1.5, arrowcolor: row.color,
+        arrowwidth: 1.5, arrowcolor: COLOR_BY_POL[row.polarization],
       });
     }
   }
@@ -260,10 +289,12 @@ function drawLevels() {
   annotations.push({
     x: lv.label_x, y: lv.label_P_y, text: '2³P States',
     showarrow: false, xanchor: 'right', textangle: -90,
+    font: { color: THEME.muted },
   });
   annotations.push({
     x: lv.label_x, y: lv.label_S_y, text: '2³S States',
     showarrow: false, xanchor: 'right', textangle: -90,
+    font: { color: THEME.muted },
   });
 
   const layout = {
@@ -271,21 +302,31 @@ function drawLevels() {
     showlegend: false,
     plot_bgcolor: 'rgba(0,0,0,0)',
     paper_bgcolor: 'rgba(0,0,0,0)',
-    margin: { t: 0, l: 0, r: 0, b: 0 },
+    font: { color: THEME.text },
+    modebar: { color: THEME.muted, activecolor: THEME.text, bgcolor: 'rgba(0,0,0,0)' },
+    // The Streamlit original used zero margins here, which ran the y-axis
+    // title into the "2³P States" label and crowded the m_F ticks.
+    margin: { t: 8, l: 62, r: 8, b: 44 },
     xaxis: {
       title: { text: 'Magnetic Quantum Number m_F' },
       tickmode: 'array', tickvals: lv.mF_values, ticktext: lv.mF_labels,
+      gridcolor: THEME.grid, zerolinecolor: THEME.grid,
+      linecolor: THEME.grid, tickcolor: THEME.grid,
     },
     yaxis: {
       title: { text: 'Relative Energy (GHz)' },
       range: lv.y_range, showgrid: true,
       tickmode: 'array', tickvals: lv.tickvals, ticktext: lv.ticktext,
+      gridcolor: THEME.grid, zerolinecolor: THEME.grid,
+      linecolor: THEME.grid, tickcolor: THEME.grid,
     },
     annotations,
     uirevision: state.isotope,
   };
 
-  Plotly.react('levels-plot', [manifold(lv.P, 'orange'), manifold(lv.S, 'purple')], layout, PLOT_CONFIG);
+  Plotly.react('levels-plot',
+    [manifold(lv.P, THEME.levelUpper), manifold(lv.S, THEME.levelLower)],
+    layout, PLOT_CONFIG);
 }
 
 function drawTable() {
@@ -307,7 +348,7 @@ function drawTable() {
       const td = document.createElement('td');
       td.textContent = text;
       if (cls) td.className = cls;
-      if (cls === 'pol') td.style.color = row.color;
+      if (cls === 'pol') td.style.color = COLOR_BY_POL[row.polarization];
       tr.appendChild(td);
     }
 
@@ -324,7 +365,13 @@ function drawTable() {
 
 function markSelectedRow() {
   for (const tr of document.querySelectorAll('#transitions tbody tr')) {
-    tr.classList.toggle('selected', Number(tr.dataset.index) === state.selected);
+    const on = Number(tr.dataset.index) === state.selected;
+    tr.classList.toggle('selected', on);
+    // Marked in the row's own polarization colour, matching the arrows the
+    // selection draws on the level diagram
+    tr.style.boxShadow = on
+      ? `inset 3px 0 0 ${COLOR_BY_POL[state.data.table[state.selected].polarization]}`
+      : '';
   }
 }
 
