@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helium 1083 nm Line Calculator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#128300;</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="boot">
+  <div class="boot-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="boot-msg">Loading Python runtime…</p>
+    <p class="boot-note">First visit downloads the runtime (~10&nbsp;MB) and caches it.
+       Afterwards this page loads from cache and runs entirely offline.</p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <aside class="sidebar">
+    <h2>Magnetic Field</h2>
+    <div class="control-row">
+      <div class="control">
+        <label for="b-slider">B Field (T)</label>
+        <!-- min is 0 so the 0.01 steps land on round values; app.js clamps
+             the result up to the number box's 0.0001 lower limit. -->
+        <input type="range" id="b-slider" min="0" max="7.0" step="0.01" value="1.0">
+      </div>
+      <div class="control narrow">
+        <label for="b-input">B (T)</label>
+        <input type="number" id="b-input" min="0.0001" max="10.0" step="0.01" value="1.0000">
+      </div>
+    </div>
+
+    <h2>Temperature</h2>
+    <div class="control-row">
+      <div class="control">
+        <label for="t-slider">Temperature (K)</label>
+        <input type="range" id="t-slider" min="77" max="1000" step="1" value="300">
+      </div>
+      <div class="control narrow">
+        <label for="t-input">T (K)</label>
+        <input type="number" id="t-input" min="77" max="1000" step="1" value="300">
+      </div>
+    </div>
+
+    <h2>Display Options</h2>
+    <fieldset class="radios">
+      <legend>Isotope</legend>
+      <label><input type="radio" name="isotope" value="He3" checked> He3</label>
+      <label><input type="radio" name="isotope" value="He4"> He4</label>
+    </fieldset>
+
+    <fieldset class="radios">
+      <legend>X-axis</legend>
+      <label><input type="radio" name="xaxis" value="Frequency Offset" checked> Frequency Offset</label>
+      <label><input type="radio" name="xaxis" value="Wavelength"> Wavelength</label>
+    </fieldset>
+
+    <hr>
+
+    <p class="blurb">
+      Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for
+      &sup3;He and &#8308;He isotopes. Adjust magnetic field and temperature to see
+      real-time changes in the spectra. Accurate only at gas pressure up to a few
+      mbar, above which additional corrections are needed.
+    </p>
+
+    <details>
+      <summary>Further Information</summary>
+      <div class="details-body">
+        <p><strong>Parameters:</strong></p>
+        <ul>
+          <li><strong>B Field</strong>: 0.0001 - 10.0 Tesla</li>
+          <li><strong>Temperature</strong>: 77 - 1000 Kelvin</li>
+          <li><strong>Doppler Width</strong>: &prop; &radic;(T/300)</li>
+        </ul>
+        <p><strong>Polarizations:</strong></p>
+        <ul>
+          <li><strong>&sigma;+</strong>: Right circular polarization</li>
+          <li><strong>&sigma;-</strong>: Left circular polarization</li>
+          <li><strong>&pi;</strong>: Linear polarization</li>
+        </ul>
+        <p><strong>Physics:</strong></p>
+        <ul>
+          <li>Zeeman splitting in magnetic field</li>
+          <li>Hyperfine structure included</li>
+          <li>Doppler broadening from temperature</li>
+        </ul>
+        <p><strong>Transitions Table:</strong></p>
+        <ul>
+          <li>Groups transitions within 2 GHz</li>
+          <li>Shows average frequencies and wavelengths</li>
+          <li>Lists all transitions in each group</li>
+        </ul>
+      </div>
+    </details>
+  </aside>
+
+  <main class="content">
+    <h1>Helium 1083 nm Line Calculator</h1>
+
+    <div id="spectra-plot" class="plot"></div>
+
+    <div class="columns">
+      <section>
+        <h3>Transitions Table</h3>
+        <p class="hint"><em>Select a row to highlight a group of transitions.</em></p>
+        <div class="table-wrap">
+          <table id="transitions">
+            <thead>
+              <tr>
+                <th class="col-pol">Polarization</th>
+                <th>Avg Rel Freq (GHz)</th>
+                <th>Avg &lambda; (nm)</th>
+                <th>Transitions</th>
+                <th>Intensity</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h3>Energy Level Diagram</h3>
+        <div id="levels-plot" class="plot"></div>
+      </section>
+    </div>
+
+    <footer>
+      Based on original Fortran calculation by P.J. Nacher,
+      <a href="https://www.lkb.fr/polarisedhelium/">Laboratoire Kastler Brossel</a>
+      <a href="https://doi.org/10.1140/epjd/e2002-00176-1">(Courtade et al. 2002)</a>
+      | Python translation and interface by
+      <a href="https://orcid.org/0000-0003-2710-4646">J. Maxwell</a>, Jefferson Laboratory, 2025.
+    </footer>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.0.1/plotly.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

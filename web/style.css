@@ -1,0 +1,185 @@
+:root {
+  --bg: #ffffff;
+  --sidebar-bg: #f0f2f6;
+  --text: #262730;
+  --muted: #6b6f76;
+  --border: #d6d9de;
+  --accent: #ff8c00;
+  --sel-bg: #fff3e0;
+}
+
+* { box-sizing: border-box; }
+
+/* The rules below set `display` on #boot and #app, which would otherwise
+   outrank the user-agent's [hidden] rule and leave both permanently shown. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Source Sans 3", "Source Sans Pro", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ---------- boot overlay ---------- */
+
+#boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  z-index: 10;
+  padding: 16px;
+}
+
+.boot-card { max-width: 420px; text-align: center; }
+.boot-note { color: var(--muted); font-size: 13px; }
+#boot-msg { font-size: 16px; margin-bottom: 4px; }
+#boot.error .spinner { display: none; }
+#boot.error #boot-msg { color: #c0392b; white-space: pre-wrap; text-align: left; }
+
+.spinner {
+  width: 34px; height: 34px;
+  margin: 0 auto 18px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- layout ---------- */
+
+#app { display: flex; align-items: flex-start; min-height: 100vh; }
+
+.sidebar {
+  flex: 0 0 320px;
+  background: var(--sidebar-bg);
+  padding: 24px 20px 40px;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 24px 32px 40px;
+}
+
+h1 { font-size: 30px; font-weight: 700; margin: 0 0 18px; }
+h2 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
+
+/* ---------- controls ---------- */
+
+.control-row { display: flex; gap: 12px; align-items: flex-end; }
+.control { flex: 1 1 auto; min-width: 0; }
+.control.narrow { flex: 0 0 96px; }
+
+.control label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+input[type="number"] {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.radios {
+  border: 0;
+  padding: 0;
+  margin: 0 0 14px;
+}
+.radios legend { font-size: 13px; color: var(--muted); padding: 0 0 4px; }
+.radios label { display: block; cursor: pointer; }
+.radios input { accent-color: var(--accent); margin-right: 6px; }
+
+hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+
+.blurb { font-size: 14px; }
+
+details { font-size: 14px; }
+summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.details-body ul { margin: 4px 0 10px; padding-left: 20px; }
+.details-body p { margin: 6px 0 2px; }
+
+/* ---------- plots and table ---------- */
+
+.plot { width: 100%; height: 500px; }
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin-top: 8px;
+}
+
+.hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+
+.table-wrap {
+  height: 400px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--sidebar-bg);
+  text-align: left;
+  font-weight: 600;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 6px 9px;
+  border-bottom: 1px solid #eceef1;
+  white-space: nowrap;
+}
+
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: #f7f8fa; }
+tbody tr.selected { background: var(--sel-bg); box-shadow: inset 3px 0 0 var(--accent); }
+
+.col-pol { width: 1%; }
+td.pol { font-weight: 600; }
+
+footer {
+  text-align: center;
+  color: gray;
+  font-size: 12px;
+  margin-top: 28px;
+}
+footer a { color: inherit; }
+
+@media (max-width: 1100px) {
+  .columns { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 800px) {
+  #app { display: block; }
+  .sidebar { position: static; max-height: none; flex-basis: auto; }
+  .content { padding: 16px; }
+}
