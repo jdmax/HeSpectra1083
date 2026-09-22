@@ -14,6 +14,7 @@ All three share the calculation in `helium_spectra_calc.py`.
 
 The static build runs `helium_spectra_calc.py` in the browser under Pyodide,
 so it can be served from any plain file host — see [web/README.md](web/README.md).
+It is published at **<https://jdmax.github.io/HeSpectra1083/>**.
 
 ## Author
 Written in 2025 by [J. Maxwell](https://orcid.org/0000-0003-2710-4646), based on Fortran by P.J. Nacher.
