@@ -25,6 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Resolves the base path Pages will serve this under
+      - uses: actions/configure-pages@v5
+
       # The same script used for any other static host, so there is one
       # definition of what the deployed directory contains.
       - name: Assemble the site
