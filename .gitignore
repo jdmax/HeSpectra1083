@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+
+# Rendered previews of Markdown docs (Quarto / IDE extensions)
+README.html
+**/README_files/
