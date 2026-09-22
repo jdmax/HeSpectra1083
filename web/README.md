@@ -28,7 +28,7 @@ not work, because the page fetches its Python sources:
 
 ```sh
 cd web
-python -m http.server 8000
+python -m http.server 8000    # or: py -m http.server 8000
 ```
 
 Then open <http://localhost:8000/>. In this layout `helium_spectra_calc.py` is
