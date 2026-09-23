@@ -29,22 +29,30 @@ const SERIES_LABELS = { plus: 'σ+', minus: 'σ-', pi: 'π' };
 // The marker is achromatic in both modes on purpose: it is an annotation, not
 // a fourth series, and every chromatic candidate collided with red or green.
 //
-// The energy levels are achromatic for the same reason. Selecting a transition
-// draws arrows in the polarization colour *inside* the level diagram, so the
-// bars would have to be a fourth and fifth categorical colour alongside all
-// three series - which no pair can clear. Making them structure rather than
-// data separates them by the absence of hue, which holds under every form of
-// colour blindness, and leaves the arrows as the only coloured thing there.
-// The two manifolds are told apart by a ~2:1 lightness step, their position,
-// and the A/B (Y/Z) labels.
+// The level bars are a gold pair, chosen for appearance. Note what that costs:
+// selecting a transition draws arrows in the polarization colour *inside* the
+// level diagram, so the bars are effectively a fourth and fifth categorical
+// colour alongside all three series, and no gold pair clears that. These are
+// the best available in each mode, ~3.7:1 apart so the manifolds read clearly.
+//
+//   light  A #4d3500 vs pi: CVD dE 11.4, clear - a deep enough bronze escapes
+//          B #c98500 vs sigma-: normal-vision dE 13.0, under the 15 floor
+//   dark   B #ffd166 vs sigma-: dE 26.3, comfortable
+//          A #8f6200 vs pi: CVD dE 1.2 - deuteranopes and protanopes see the
+//          A bars and the pi arrows as one colour. Unavoidable on a dark
+//          surface: a bronze dark enough to escape green drops below 3:1.
+//
+// The A/B labels and the vertical split carry the distinction for those
+// viewers. Swapping levelLower to a neutral (#848c99 dark, #6b7280 light)
+// removes the collapse entirely if it ever matters.
 const PALETTE = {
   light: {
     series: { plus: '#2a78d6', minus: '#e66767', pi: '#006d00' },
     text: '#1a1a19',
     muted: '#52514e',
     grid: '#d6d9de',
-    levelUpper: '#3f4652',   // 2³P states
-    levelLower: '#6b7280',   // 2³S states
+    levelUpper: '#c98500',   // 2³P states
+    levelLower: '#4d3500',   // 2³S states
     marker: '#52514e',
   },
   dark: {
@@ -52,8 +60,8 @@ const PALETTE = {
     text: '#e8e8e5',
     muted: '#9ea3ad',
     grid: '#2f333c',
-    levelUpper: '#c9cdd6',
-    levelLower: '#848c99',
+    levelUpper: '#ffd166',
+    levelLower: '#8f6200',
     marker: '#c3c2b7',
   },
 };
