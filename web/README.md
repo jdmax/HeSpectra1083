@@ -211,14 +211,21 @@ Three things in the page show what a peak contains:
 Selecting a row puts a laser on that peak's centroid and shows, under each
 2³S bar of the level diagram, how fast it empties that level. The rate for
 level i is Σ S·K(ν_L − ν) over the lines from i in the peak's polarisation,
-from `HeliumSpectraCalculator.pumping_rates()`. It is relative to the mean over
-the levels the peak pumps: those with a line in the peak at least 10% as strong
-as its strongest. So 100% means pumped, and 0.47% reads directly as leakage.
+from `HeliumSpectraCalculator.pumping_rates()`. **100% is what a full-strength
+line (S = 1) exactly on resonance with the same laser would give**, so pumped
+levels and leaks read on one scale. With the strong σ⁻ peak at 5 T and
+100 mbar, A₁–A₄ read 90–94% (their lines sit 0.5–0.7 GHz off the centroid) and
+A₅/A₆ read 0.44/0.46%.
 
-- **Only what says something is labelled.** The pumped levels always are;
-  others once they reach 0.1%. At 5 T the A₅/A₆ leak is labelled at 100 mbar
-  and disappears at 1 mbar. Hovering a lower level gives the rate and the lines
-  responsible, e.g. "0.47%, 97% via A₅→B₁₃ (+13.8 GHz from laser)".
+An earlier version normalised to the mean over the levels the peak pumps. That
+made those levels read ~100% by construction, whatever the laser was doing, and
+gave meaningless pairs like 19%/181% when a peak's lines differed in strength.
+
+- **Only what says something is labelled.** The levels the peak pumps (those
+  with a line in it at least 10% as strong as its strongest) always are; others
+  once they reach 0.1%. At 5 T the A₅/A₆ leak is labelled at 100 mbar and
+  disappears at 1 mbar. Hovering a lower level gives the rate and the lines
+  responsible, e.g. "0.44%, 97% via A₅→B₁₃ (+13.8 GHz from laser)".
 - **The laser is fixed at 2 GHz FWHM, Gaussian** (`PUMP_LASER_FWHM` in
   `bridge.py`). A Gaussian laser on a Voigt line gives a Voigt whose Gaussian
   width adds in quadrature, √(wG² + wLaser²); `test/test_pumping.py` checks that

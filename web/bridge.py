@@ -10,7 +10,7 @@ around intensity-weighted centroids rather than by single linkage.
 """
 
 import numpy as np
-from helium_spectra_calc import HeliumSpectraCalculator
+from helium_spectra_calc import HeliumSpectraCalculator, voigt_K
 
 # c expressed so that (nm) = C_NM_GHZ / (GHz)
 C_NM_GHZ = 299792458.0
@@ -23,10 +23,8 @@ GROUP_THRESHOLD = 2.0
 # Gaussian of this FWHM in GHz, centred on the selected peak's centroid.
 PUMP_LASER_FWHM = 2.0
 
-# A lower level counts as one the peak pumps when one of its lines in the
-# peak is at least this fraction of the peak's strongest line. The readout is
-# normalised to the mean rate of those levels, so a weak line that happens to
-# sit in the peak cannot drag the reference down.
+# A lower level counts as one the peak pumps, and is always labelled, when one
+# of its lines in the peak is at least this fraction of the peak's strongest.
 PUMP_TARGET_FRACTION = 0.1
 
 # Collisional broadening lives in helium_spectra_calc, which follows
@@ -266,6 +264,11 @@ def _pumping_context(pump, pol_data, centroids, isotope):
         'energies': np.asarray(pol_data['energies'], dtype=float),
         'names': [format_transition_name(lo, up, isotope) for lo, up in zip(lower, upper)],
         'by_level': [np.where(lower == i)[0] for i in range(pump['n_lower'])],
+        # The rate a full-strength line (S = 1) would give exactly on
+        # resonance with the same laser: the readout's 100%. Normalising to the
+        # levels the peak pumps instead made those read ~100% by construction.
+        'reference': float(voigt_K(0.0, np.hypot(pump['wG'], PUMP_LASER_FWHM),
+                                   pump['wL'])),
     }
 
 
@@ -273,17 +276,17 @@ def _pumping_readout(context, k, group, centroid):
     """How fast a laser on peak k empties each lower level.
 
     The laser is a Gaussian of PUMP_LASER_FWHM on the peak's centroid, driving
-    every line of the peak's polarisation. Rates are per atom and relative to
-    the mean over the levels the peak pumps, so '0.48%' reads directly as
-    leakage.
+    every line of the peak's polarisation. Rates are per atom, as a fraction of
+    what a full-strength line exactly on resonance would give, so pumped levels
+    show how well the laser covers their lines and leaks read on the same scale.
     """
     rates = context['rates'][k]
     per_line = context['per_line'][k]
+    reference = context['reference']
 
     strongest = max(group['forces'])
     targeted = sorted({int(lo) for lo, s in zip(group['ind_lower'], group['forces'])
                        if s >= PUMP_TARGET_FRACTION * strongest})
-    reference = float(np.mean(rates[targeted]))
 
     levels = []
     for i, mine in enumerate(context['by_level']):

@@ -383,7 +383,7 @@ function drawSpectra() {
   Plotly.react('spectra-plot', traces, layout, PLOT_CONFIG);
 }
 
-// Leaks below this fraction of the pumped rate are left off the diagram,
+// Leaks below this rate (0.1% of a full-strength line) are left off the diagram,
 // though they still appear in the level's hover
 const PUMP_LABEL_FLOOR = 0.001;
 
@@ -392,17 +392,17 @@ function pumpHoverText(pump, polarization) {
   return pump.levels.map(rate => {
     let text = '<br><br>';
     if (rate.targeted) {
-      text += `<b>Pumped by this peak</b>: ${rate.text} of the mean`;
+      text += `<b>Pumped by this peak</b>, at ${rate.text}`;
     } else if (!rate.has_lines) {
       text += `No ${polarization} lines from this level`;
     } else {
-      text += `<b>Emptied at ${rate.text}</b> of the pumped rate`;
+      text += `<b>Emptied at ${rate.text}</b>`;
     }
     for (const v of rate.via) {
       text += `<br>${v.share}% via ${v.name} (${v.offset} GHz from laser)`;
     }
-    return text + `<br><i>${pump.laser_fwhm} GHz laser on the peak centroid;`
-      + ' rates per atom</i>';
+    return text + `<br><i>100% = a full-strength line on resonance with a`
+      + ` ${pump.laser_fwhm} GHz laser on the peak centroid; rates per atom</i>`;
   });
 }
 
@@ -443,9 +443,9 @@ function drawLevels() {
   const SHAFT_SAMPLES = 14;
 
   // Pumping readout for the selected peak: how fast a laser on it empties
-  // each lower level, relative to the levels it pumps. Labelled only where it
-  // says something - the pumped levels, and leaks of at least 0.1% - with the
-  // full breakdown in the bar's hover.
+  // each lower level, where 100% is a full-strength line on resonance.
+  // Labelled only where it says something - the pumped levels, and leaks of at
+  // least 0.1% - with the full breakdown in the bar's hover.
   const pump = state.pump;
   const pumpExtra = pump ? pumpHoverText(pump, selectedRow().polarization) : [];
 

@@ -61,7 +61,8 @@ levels = strong_sigma_minus_readout(100.0)['levels']
 for i, lv in enumerate(levels):
     print(f'     A{i + 1}: {lv["text"]:>7}{"  pumped" if lv["targeted"] else ""}')
 report('A1-A4 marked as pumped', [lv['targeted'] for lv in levels] == [True] * 4 + [False] * 2)
-report('A1-A4 within 10% of the mean', all(0.9 < lv['rel'] < 1.1 for lv in levels[:4]),
+report('A1-A4 at 85-100%: full-strength lines, a little off the centroid',
+       all(0.85 < lv['rel'] < 1.0 for lv in levels[:4]),
        str([round(lv['rel'], 3) for lv in levels[:4]]))
 report('A5 and A6 leak at 0.4-0.6%', all(0.004 < lv['rel'] < 0.006 for lv in levels[4:]),
        str([round(lv['rel'], 5) for lv in levels[4:]]))
@@ -75,7 +76,30 @@ ratio = levels[4]['rel'] / strong_sigma_minus_readout(1.0)['levels'][4]['rel']
 report(f'A5 leak grows {ratio:.0f}x from 1 to 100 mbar', ratio > 20, f'{ratio:.1f}')
 
 print()
-print('4. The readout is made on request, for the table compute() last returned')
+print('4. 100% means a full-strength line exactly on resonance')
+# With the laser on a line, that line's own part of the readout must be exactly
+# its strength S. Other lines from the same level can only add to it: at
+# 100 mbar a weak line 6 GHz from a strong one of the same level reads ~30x its
+# own strength, nearly all through the strong line's wing.
+full = calc.calculate_full_results(5.0, 300.0)
+wG = calc.doppler_fwhm(300.0, 'He3')
+wL = calc.collision_per_mbar['He3'] * 100.0
+reference = float(voigt_K(0.0, np.hypot(wG, bridge.PUMP_LASER_FWHM), wL))
+worst_own, never_below = 0.0, True
+for pol in ('plus', 'minus', 'pi'):
+    tr = full['transitions']['he3'][pol]
+    for j, (nu, S) in enumerate(zip(tr['energies'], tr['forces'])):
+        rates, per_line = calc.pumping_rates(
+            tr['energies'], tr['forces'], tr['ind_lower'], nu, wG, wL,
+            bridge.PUMP_LASER_FWHM, 6)
+        worst_own = max(worst_own, abs(per_line[j] / reference - S))
+        never_below &= rates[tr['ind_lower'][j]] / reference >= S - 1e-12
+report(f"a line's own part is exactly S, to {worst_own:.1e}", worst_own < 1e-12,
+       f'{worst_own:.1e}')
+report('other lines only ever add to it', never_below)
+
+print()
+print('5. The readout is made on request, for the table compute() last returned')
 table = bridge.compute(5.0, 300.0, 'He3', 'Frequency Offset', 100.0)['table']
 report('rows carry no readout of their own', all('pumping' not in r for r in table))
 report('an out-of-range row gives None', bridge.pumping(len(table)) is None)
