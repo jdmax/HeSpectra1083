@@ -125,7 +125,11 @@ function bootFail(err) {
 async function fetchText(paths) {
   for (const path of paths) {
     try {
-      const resp = await fetch(path);
+      // Revalidate every load. Without this a browser may reuse a cached copy
+      // after the files change - GitHub Pages allows 10 minutes, a local
+      // `http.server` leaves it to heuristics - and run a stale bridge.py
+      // under a newer app.js. When nothing has changed it costs a 304.
+      const resp = await fetch(path, { cache: 'no-cache' });
       if (resp.ok) return await resp.text();
     } catch (err) {
       /* try the next candidate */
