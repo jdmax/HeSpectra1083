@@ -102,6 +102,7 @@ const state = {
   T: 300,
   isotope: 'He3',
   xAxis: 'Frequency Offset',
+  P: 0,
   selected: null,   // index into the current table, or null
   data: null,       // last result from bridge.compute_js
 };
@@ -178,6 +179,7 @@ function bindControls() {
   // but here they stay in sync without a round trip.
   linkNumeric('b-slider', 'b-input', 'B', v => v.toFixed(4));
   linkNumeric('t-slider', 't-input', 'T', v => String(Math.round(v)));
+  linkNumeric('p-slider', 'p-input', 'P', v => String(Math.round(v)));
 
   for (const radio of document.querySelectorAll('input[name="isotope"]')) {
     radio.addEventListener('change', () => {
@@ -273,7 +275,8 @@ function recompute() {
   renderQueued = true;
   requestAnimationFrame(() => {
     renderQueued = false;
-    state.data = bridge.compute_js(state.B, state.T, state.isotope, state.xAxis);
+    state.data = bridge.compute_js(
+      state.B, state.T, state.isotope, state.xAxis, state.P);
     if (state.selected !== null && state.selected >= state.data.table.length) {
       state.selected = null;
     }
@@ -496,12 +499,16 @@ function drawTable() {
   const tbody = document.querySelector('#transitions tbody');
   tbody.replaceChildren();
 
-  // The threshold is fixed in frequency while the Doppler width follows the
-  // temperature, so which lines get grouped is not purely physical. Showing
-  // both lets the two be compared.
+  // The threshold is fixed in frequency while the line width follows the
+  // temperature and the pressure, so which lines get grouped is not purely
+  // physical. Showing both lets the two be compared.
+  const widths = Number(state.data.lorentz) > 0
+    ? `Doppler ${state.data.doppler} + collisional ${state.data.lorentz}`
+      + ` = Voigt ${state.data.voigt} GHz FWHM`
+    : `Doppler width ${state.data.doppler} GHz FWHM`;
   document.getElementById('grouping-note').textContent =
     ` Grouped when successive lines are within ${state.data.group_threshold} GHz`
-    + ` of each other; Doppler width here is ${state.data.doppler} GHz.`;
+    + ` of each other; ${widths}.`;
 
   state.data.table.forEach((row, index) => {
     const tr = document.createElement('tr');
@@ -511,9 +518,10 @@ function drawTable() {
       [row.polarization, 'pol'],
       [row.frequency, ''],
       [row.wavelength, ''],
-      // Flagged when the group reaches wider than the Doppler width, i.e. when
-      // its members do not actually merge into a single peak
-      [row.span, Number(row.span) > Number(state.data.doppler) ? 'span wide' : 'span'],
+      // Flagged when the group reaches wider than the line width, i.e. when
+      // its members do not actually merge into a single peak. Pressure widens
+      // the lines, so a group flagged at low pressure can stop being flagged.
+      [row.span, Number(row.span) > Number(state.data.voigt) ? 'span wide' : 'span'],
       [row.transitions, ''],
       [row.intensity, ''],
     ];

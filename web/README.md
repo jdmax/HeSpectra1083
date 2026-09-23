@@ -95,6 +95,59 @@ compared with CPython — every displayed string is identical and floats agree
 to about 1e-13, the difference being LAPACK rounding between the WebAssembly
 and native NumPy builds.
 
+## Pressure broadening
+
+The pressure control adds **collisional** broadening, which is Lorentzian, not
+Doppler. Combined with the Gaussian Doppler profile it gives a Voigt. This
+follows P.J. Nacher's `spectreVoigt_w0w12` Fortran and lives in
+`helium_spectra_calc.py`, so the command-line and web interfaces share it.
+
+That matters because Lorentzian wings fall off as 1/Δν² rather than
+exp(−Δν²). A line that is negligible at a given separation under pure Doppler
+broadening can contribute far more once the gas is at pressure — for the
+σ⁻ spectrum at 6 T, the signal midway between the strong peak and the A₅/A₆
+probe peak rises by a factor of ~130 between 0 and 100 mbar.
+
+### What came from the Fortran
+
+- **The line shape.** Nacher tabulates
+  K(x, y) = (y/π) ∫ exp(−z²)/(y² + (x−z)²) dz with
+  x = 2√(ln2)(ν−ν₀)/wG and y = √(ln2)·wL/wG, integrating over z ∈ [−7, 7] by
+  Simpson quadrature. That integral is Re[w(x+iy)], so `voigt_K()` evaluates
+  the Faddeeva function directly — same quantity, no truncation at |z| = 7.
+  Checked against a literal transcription of his `funcV`/`qsimp`: agreement to
+  5×10⁻¹⁰ over wL from 0.012 to 3.2 GHz. K(x, 0) = exp(−x²), so zero pressure
+  reproduces the Doppler-only Gaussian exactly.
+- **The Doppler width**, wG = √(2RT/M)/λ · 2√(ln2), from the molar mass. This
+  replaces `1.1875·√(T/300)` and `D3·√(3/4)`: **He3 widths shift by +0.012%
+  and He4 by +0.247%**, the He4 change because the exact mass ratio is
+  √(M₃/M₄) = 0.86805, not √(3/4) = 0.86603.
+- **Two Lorentz widths**, wL0 for the 2³P₀ lines and wL12 for the rest, and
+  the rates his prompts quote: 12.0 MHz/mbar for ³He, 10.4 for ⁴He.
+- **Tabulate-and-interpolate**, as his `tabVoigt0`/`tabVoigt12` arrays do.
+  The grid is fine across the core and coarse in the wings, where K falls off
+  as 1/x²; interpolation error stays near 1×10⁻⁵ of the peak and the Voigt
+  path costs about the same as the old Gaussian one.
+
+### Where it departs
+
+The Fortran assigns each line to wL0 or wL12 **by name**, which presumes J is
+a good quantum number. Here the spectra are computed at arbitrary field, and
+at several tesla J is thoroughly mixed: at 6 T the J=0 character of the ³He
+2³P manifold is spread over six states at weights of 0.23 to 0.47. So
+`line_widths()` interpolates each transition's Lorentz width by its upper
+state's J=0 admixture, from `j0_weights()`. Below ~0.2 T the weights are 0 or
+1 and the two treatments agree. With wL0 = wL12, as the quoted rates make
+them, the weighting has no effect on output at all — the plumbing is there for
+when they differ.
+
+### What this does not do
+
+It broadens the line *shape* only. The line positions and strengths come from
+a model valid to a few mbar: collisional shifts (~1.4 MHz/mbar) and any line
+mixing among the 2³P sublevels are not included. Above a few mbar the widths
+are right, but the positions are still the low-pressure ones.
+
 ## Reading a peak's membership
 
 A row in the transitions table is a *group* of lines, not a single one, and

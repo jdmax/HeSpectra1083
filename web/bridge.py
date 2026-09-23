@@ -17,6 +17,15 @@ C_NM_GHZ = 299792458.0
 # Single-linkage chaining width used by group_transitions()
 GROUP_THRESHOLD = 2.0
 
+# Collisional broadening lives in helium_spectra_calc, which follows
+# P.J. Nacher's spectreVoigt_w0w12: a Voigt line shape built from a Doppler
+# FWHM and two Lorentz FWHMs, wL0 for the 2^3P_0 lines and wL12 for the rest.
+#
+# It broadens the LINE SHAPE only. The line positions and strengths come from
+# a model valid to a few mbar; collisional shifts (~1.4 MHz/mbar) and any line
+# mixing among the 2^3P sublevels are not included, so above a few mbar the
+# widths are right but the positions are still the low-pressure ones.
+
 _calculator = None
 
 
@@ -299,32 +308,55 @@ def _level_diagram(energy_levels, isotope):
     }
 
 
-def compute(B, Temp, isotope, x_axis_type):
-    """Everything the page needs for one (B, T, isotope, x-axis) combination"""
+def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
+    """Everything the page needs for one parameter combination"""
     calculator = _get_calculator()
-    full_results = calculator.calculate_full_results(B, Temp)
+
+    # Collisional width for the isotope on display. The Fortran takes wL0 and
+    # wL12 separately; the rate it quotes is the same for both, so they are
+    # set equal here and the J=0 weighting inside calculate_full_results has
+    # no effect until they differ. calculate_full_results broadens both
+    # isotopes with these, and only the selected one is read back below.
+    rate = calculator.collision_per_mbar[isotope]
+    wL = rate * float(pressure)
+    full_results = calculator.calculate_full_results(B, Temp, wL0=wL, wL12=wL)
 
     transitions = (full_results['transitions']['he3'] if isotope == 'He3'
                    else full_results['transitions']['he4'])
 
-    # The grouping threshold is a fixed 2 GHz; the Doppler width is the
-    # physical scale that decides whether lines actually blend into one peak,
-    # so the page shows it for comparison.
-    doppler = full_results['doppler_widths']['D3' if isotope == 'He3' else 'D4']
+    # The grouping threshold is a fixed 2 GHz; the line width is the physical
+    # scale that decides whether lines actually blend into one peak, so the
+    # page shows it for comparison. Widths are quoted as FWHM, which is what
+    # the threshold is comparable to; calculate_full_results returns the
+    # Doppler width as a 1/e half-width.
+    # Doppler FWHM as the Fortran computes it, from the molar mass; this is
+    # the same width the line shapes are built with.
+    doppler_fwhm = calculator.doppler_fwhm(Temp, isotope)
+    lorentz_fwhm = wL
+    # Olivero & Longbothum's approximation, good to ~0.02%
+    voigt_fwhm = (0.5346 * lorentz_fwhm
+                  + np.sqrt(0.2166 * lorentz_fwhm ** 2 + doppler_fwhm ** 2))
+
+    title = f'{isotope} Spectra at B = {B:.4f} T, T = {Temp:.0f} K'
+    if wL > 0:
+        title += f', P = {float(pressure):.0f} mbar'
 
     return {
-        'title': f'{isotope} Spectra at B = {B:.4f} T, T = {Temp:.0f} K',
+        'title': title,
         'spectra': _spectra_series(full_results['spectra_data'], isotope, x_axis_type),
         'table': build_transitions_table(transitions, isotope, calculator.c1_ghz),
         'levels': _level_diagram(full_results['energy_levels'], isotope),
-        'doppler': f"{float(doppler):.3f}",
+        'doppler': f"{doppler_fwhm:.3f}",
+        'lorentz': f"{lorentz_fwhm:.3f}",
+        'voigt': f"{voigt_fwhm:.3f}",
         'group_threshold': f"{GROUP_THRESHOLD:.1f}",
     }
 
 
-def compute_js(B, Temp, isotope, x_axis_type):
+def compute_js(B, Temp, isotope, x_axis_type, pressure=0.0):
     """compute() converted to plain JS objects/arrays (no PyProxy to free)"""
     import js
     from pyodide.ffi import to_js
-    return to_js(compute(B, Temp, isotope, x_axis_type),
+    return to_js(compute(B, Temp, isotope, x_axis_type, pressure),
                  dict_converter=js.Object.fromEntries)
+

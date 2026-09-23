@@ -62,6 +62,23 @@
       </div>
     </div>
 
+    <h2>Pressure</h2>
+    <div class="control-row">
+      <div class="control">
+        <label for="p-slider">Pressure (mbar)</label>
+        <input type="range" id="p-slider" min="0" max="300" step="1" value="0">
+      </div>
+      <div class="control narrow">
+        <label for="p-input">P (mbar)</label>
+        <input type="number" id="p-input" min="0" max="300" step="1" value="0">
+      </div>
+    </div>
+    <p class="sub-note">
+      Adds collisional broadening &mdash; 12.0&nbsp;MHz/mbar for &sup3;He,
+      10.4 for &#8308;He (Lorentzian FWHM) &mdash; giving a Voigt profile, as in
+      P.J.&nbsp;Nacher's <em>spectreVoigt</em>. 0 leaves the Doppler-only shape.
+    </p>
+
     <h2>Display Options</h2>
     <fieldset class="radios">
       <legend>Isotope</legend>
@@ -79,9 +96,15 @@
 
     <p class="blurb">
       Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for
-      &sup3;He and &#8308;He isotopes. Adjust magnetic field and temperature to see
-      real-time changes in the spectra. Accurate only at gas pressure up to a few
-      mbar, above which additional corrections are needed.
+      &sup3;He and &#8308;He isotopes. Adjust magnetic field, temperature and pressure
+      to see real-time changes in the spectra.
+    </p>
+    <p class="blurb caveat">
+      Line <em>positions and strengths</em> come from a model valid to a few mbar.
+      The pressure control broadens the line <em>shape</em> only: collisional
+      shifts (~1.4&nbsp;MHz/mbar) and any line mixing among the 2&sup3;P sublevels
+      are not included, so above a few mbar the widths are right but the
+      positions are still the low-pressure ones.
     </p>
 
     <details>
@@ -91,7 +114,10 @@
         <ul>
           <li><strong>B Field</strong>: 0.0001 - 10.0 Tesla</li>
           <li><strong>Temperature</strong>: 77 - 1000 Kelvin</li>
-          <li><strong>Doppler Width</strong>: &prop; &radic;(T/300)</li>
+          <li><strong>Pressure</strong>: 0 - 300 mbar (collisional broadening only)</li>
+          <li><strong>Doppler Width</strong>: &prop; &radic;(T/300), Gaussian</li>
+          <li><strong>Collisional Width</strong>: 12.0 (&sup3;He) / 10.4 (&#8308;He)
+              MHz/mbar FWHM, Lorentzian</li>
         </ul>
         <p><strong>Polarizations:</strong></p>
         <ul>
@@ -104,12 +130,16 @@
           <li>Zeeman splitting in magnetic field</li>
           <li>Hyperfine structure included</li>
           <li>Doppler broadening from temperature</li>
+          <li>Collisional broadening from pressure (Voigt profile)</li>
         </ul>
         <p><strong>Transitions Table:</strong></p>
         <ul>
-          <li>Groups transitions within 2 GHz</li>
-          <li>Shows average frequencies and wavelengths</li>
-          <li>Lists all transitions in each group</li>
+          <li>Groups lines within 2 GHz of the <em>previous</em> one, so a
+              group can chain out much wider than that</li>
+          <li>Span shows each group's true extent, flagged when it exceeds
+              the line width</li>
+          <li>Hover a transition arrow for its own frequency, intensity and
+              share of the peak</li>
         </ul>
       </div>
     </details>

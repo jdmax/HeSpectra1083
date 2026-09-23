@@ -9,6 +9,68 @@ This module contains the calculation logic for helium spectra with Zeeman splitt
 
 import numpy as np
 
+# --------------------------------------------------------------------------
+# Voigt line shape, following P.J. Nacher's spectreVoigt_w0w12 Fortran.
+#
+# He tabulates
+#     K(x, y) = (y/pi) * Integral exp(-z^2) / (y^2 + (x - z)^2) dz
+# with
+#     x = 2*sqrt(ln2) * (nu - nu0) / wG        (wG = Doppler FWHM)
+#     y = sqrt(ln2) * wL / wG                  (wL = Lorentz FWHM)
+# evaluating the integral by Simpson quadrature over z in [-7, 7].
+#
+# That integral is by definition the real part of the Faddeeva function,
+# Re[w(x + iy)], so it is evaluated directly here rather than by quadrature:
+# same quantity, no truncation at |z| = 7, and fast enough to stay
+# interactive. K(x, 0) = exp(-x^2) exactly, so at zero pressure this reduces
+# to the Gaussian the module used before.
+# --------------------------------------------------------------------------
+
+_WEIDEMAN_N = 32
+_weideman_coefficients = None
+
+
+def _weideman_a(n=_WEIDEMAN_N):
+    """Cached coefficients for Weideman's rational approximation to w(z)."""
+    global _weideman_coefficients
+    if _weideman_coefficients is None:
+        m = 2 * n
+        k = np.arange(-m + 1, m)
+        L = np.sqrt(n / np.sqrt(2.0))
+        t = L * np.tan(k * np.pi / (2 * m))
+        f = np.concatenate(([0.0], np.exp(-t ** 2) * (L ** 2 + t ** 2)))
+        a = np.real(np.fft.fft(np.fft.fftshift(f))) / (2 * m)
+        _weideman_coefficients = (np.flipud(a[1:n + 1]), L)
+    return _weideman_coefficients
+
+
+def faddeeva(z):
+    """w(z) = exp(-z^2) erfc(-i z), for Im(z) >= 0.
+
+    Weideman's method (SIAM J. Numer. Anal. 31, 1497 (1994)). Pure numpy, so
+    it runs under Pyodide without pulling in scipy; y is a half width and is
+    never negative, so the upper half plane is all that is needed.
+    """
+    a, L = _weideman_a()
+    denominator = L - 1j * np.asarray(z)
+    Z = (L + 1j * np.asarray(z)) / denominator
+    p = np.polyval(a, Z)
+    return 2.0 * p / denominator ** 2 + (1.0 / np.sqrt(np.pi)) / denominator
+
+
+def voigt_K(detuning, wG, wL):
+    """Nacher's K(x, y): unit peak height in the Doppler-only limit.
+
+    detuning, wG (Doppler FWHM) and wL (Lorentz FWHM) are all in GHz.
+    """
+    root_ln2 = np.sqrt(np.log(2.0))
+    x = 2.0 * root_ln2 * np.asarray(detuning, dtype=float) / wG
+    if wL <= 0.0:
+        # Exactly what the module computed before any pressure support
+        return np.exp(-x ** 2)
+    y = root_ln2 * wL / wG
+    return np.real(faddeeva(x + 1j * y))
+
 
 class HeliumSpectraCalculator:
     """Class to handle helium spectra calculations"""
@@ -63,6 +125,18 @@ class HeliumSpectraCalculator:
 
         # C1 line absolute position in GHz for wavelength calculations
         self.c1_ghz = 2.766933041e+5
+
+        # Doppler width, as spectreVoigt_w0w12 computes it:
+        #   wG = sqrt(2 R T / M) / lambda * 2 sqrt(ln2)      [FWHM]
+        self.R_gas = 8.314472           # J/(mol K)
+        self.lambda_1083 = 1.0829e-6    # m
+        self.molar_mass = {'He3': 3.0160293e-3, 'He4': 4.00260e-3}   # kg/mol
+
+        # Collisional broadening, Lorentz FWHM in GHz per mbar. The Fortran
+        # takes wL0 (2^3P_0 lines: C8, C9 for He3; D0 for He4) and wL12 (all
+        # others) as separate inputs; these are the typical values its prompts
+        # quote, from Nikiel et al., Eur. Phys. J. D 67, 200 (2013).
+        self.collision_per_mbar = {'He3': 0.012, 'He4': 0.0104}
 
         # /// START OF MODIFIED CODE ///
         # mF values for the basis states, used to identify the mF of the eigenstates
@@ -237,7 +311,42 @@ class HeliumSpectraCalculator:
             self.Hzee3P[i + 9, i + 9] = self.Hzee3P[i, i] - self.gi / 2.0  # assign second block
             self.Hzee3P[i, i] = self.Hzee3P[i, i] + self.gi / 2.0  # modify first block
 
-    def calculate_full_results(self, B, Temp=300):
+    def doppler_fwhm(self, Temp, isotope):
+        """Doppler FWHM in GHz, from the molar mass as the Fortran does.
+
+        The module's own D3/D4 are 1/e half-widths and relate to this by
+        wG = 2 sqrt(ln2) D. Note D4 was taken as D3*sqrt(3/4); the exact mass
+        ratio is sqrt(M3/M4) = 0.86805, so this runs 0.25% wider for He4.
+        """
+        speed = np.sqrt(2.0 * self.R_gas * Temp / self.molar_mass[isotope])
+        return speed / self.lambda_1083 * 2.0 * np.sqrt(np.log(2.0)) / 1e9
+
+    def j0_weights(self, V_P, n_spin=1):
+        """Fraction of each 2^3P eigenstate that is J = 0.
+
+        P4 carries the 9 uncoupled |mL,mS> states into the coupled |J,mJ>
+        basis, where index 8 is |J=0, mJ=0>. For He3 the 18 states are that
+        9-dim space times the two nuclear spin projections, stored as two
+        blocks of 9, so the J=0 population is summed over both.
+
+        The Fortran assigns each line to wL0 or wL12 by name, which presumes
+        J is a good quantum number. At several tesla it is not, so the width
+        is interpolated by this admixture instead; below ~0.2 T the weights
+        are 0 or 1 and the two agree.
+        """
+        weights = np.zeros(V_P.shape[1])
+        for block in range(n_spin):
+            rows = slice(block * 9, block * 9 + 9)
+            amplitude = self.P4 @ V_P[rows, :]
+            weights += np.abs(amplitude[8, :]) ** 2
+        return weights
+
+    def line_widths(self, ind_upper, j0_weight, wL0, wL12):
+        """Per-transition Lorentz FWHM, blended by the upper state's J=0 part"""
+        p0 = j0_weight[np.asarray(ind_upper, dtype=int)]
+        return p0 * wL0 + (1.0 - p0) * wL12
+
+    def calculate_full_results(self, B, Temp=300, wL0=0.0, wL12=0.0):
         """
         Calculate complete results including all intermediate values needed for file output.
 
@@ -247,8 +356,14 @@ class HeliumSpectraCalculator:
         - transitions: All transition data (energies, forces, indices)
         - doppler_widths: D3 and D4
         """
-        D3 = 1.1875 * np.sqrt(Temp / 300)  # Doppler width for He3
-        D4 = D3 * np.sqrt(3.0 / 4.0)  # Doppler width for He4
+        # Doppler 1/e half-widths, from the molar masses as the Fortran does.
+        # These were 1.1875*sqrt(T/300) and D3*sqrt(3/4). The He3 value is the
+        # same formula rounded to five figures, so it shifts by 0.009%; the He4
+        # mass ratio is sqrt(M3/M4) = 0.86805 rather than sqrt(3/4) = 0.86603,
+        # so He4 widths come out 0.25% larger than before.
+        root_ln2 = np.sqrt(np.log(2.0))
+        D3 = self.doppler_fwhm(Temp, 'He3') / (2.0 * root_ln2)
+        D4 = self.doppler_fwhm(Temp, 'He4') / (2.0 * root_ln2)
 
         # Zero-field computation first for energy references
         H3S_zero = self.Hhf3S
@@ -333,10 +448,23 @@ class HeliumSpectraCalculator:
         r4me, r4mf, indym, indzm = self.sort_transitions(T4m, W4P, W4S, self.epsilon, he4_offset)
         r4pie, r4pif, indypi, indzpi = self.sort_transitions(T4pi, W4P, W4S, self.epsilon, he4_offset)
 
-        # Generate Doppler-broadened spectra
+        # Lorentz width per transition, set by how much J=0 character the
+        # upper state carries (see j0_weights)
+        p0_3 = self.j0_weights(V3P, n_spin=2)
+        p0_4 = self.j0_weights(V4P, n_spin=1)
+        width = self.line_widths
+        wl3 = (width(indbp, p0_3, wL0, wL12),
+               width(indbm, p0_3, wL0, wL12),
+               width(indbpi, p0_3, wL0, wL12))
+        wl4 = (width(indzp, p0_4, wL0, wL12),
+               width(indzm, p0_4, wL0, wL12),
+               width(indzpi, p0_4, wL0, wL12))
+
+        # Generate Doppler- (and, with wL > 0, collision-) broadened spectra
         spectra_data = self.generate_spectra_data(
             r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
-            r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4
+            r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4,
+            wl3=wl3, wl4=wl4
         )
 
         # Return comprehensive results
@@ -468,8 +596,14 @@ class HeliumSpectraCalculator:
         return re[sort_idx], rf[sort_idx], ind_lower[sort_idx], ind_upper[sort_idx]
 
     def generate_spectra_data(self, r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
-                              r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4):
-        """Generate Doppler-broadened spectra data"""
+                              r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4,
+                              wl3=None, wl4=None):
+        """Generate broadened spectra data.
+
+        wl3 / wl4 are (plus, minus, pi) tuples of per-transition Lorentz FWHM
+        in GHz. Left as None, or all zero, every line is the plain Doppler
+        Gaussian this method produced before pressure was supported.
+        """
         # Generate frequency axis
         freq_range = np.arange(-200, 300.1, 0.1)
 
@@ -485,25 +619,64 @@ class HeliumSpectraCalculator:
         he4_minus = np.zeros_like(freq_range)
         he4_pi = np.zeros_like(freq_range)
 
+        # A line's shape is K(x, y) with wG = 2 sqrt(ln2) D, which is exactly
+        # exp(-((nu - nu0)/D)^2) when its Lorentz width is zero.
+        root_ln2 = np.sqrt(np.log(2.0))
+
+        # K depends only on |detuning| once wG and wL are fixed, so it is
+        # tabulated per distinct wL and interpolated, as the Fortran does with
+        # its tabVoigt0/tabVoigt12 arrays. The grid has to reach several
+        # hundred GHz to cover every line pair, which a uniform fine step would
+        # make more expensive than evaluating K outright, so it is fine across
+        # the core and coarse out in the wings, where K falls off as 1/x^2 and
+        # is smooth. Interpolation error stays near 1e-5 of the peak.
+        CORE_REACH, CORE_STEP, TAIL_STEP = 30.0, 0.01, 0.1
+
+        def voigt_table(wG, wL, reach):
+            core = np.arange(0.0, min(reach, CORE_REACH) + CORE_STEP, CORE_STEP)
+            if reach > CORE_REACH:
+                tail = np.arange(core[-1] + TAIL_STEP, reach + TAIL_STEP, TAIL_STEP)
+                grid = np.concatenate((core, tail))
+            else:
+                grid = core
+            return grid, voigt_K(grid, wG, wL)
+
+        def accumulate(spectrum, energies, forces, widths, D, offset):
+            wG = 2.0 * root_ln2 * D
+            tables = {}
+            if len(energies):
+                # Cover every line, so np.interp never runs off the end of the
+                # table and clamps to a non-zero tail value
+                centres = np.asarray(energies, dtype=float) + offset
+                reach = float(np.max(np.abs(
+                    np.subtract.outer(freq_range[[0, -1]], centres)))) + TAIL_STEP
+            for i in range(len(energies)):
+                wL = 0.0 if widths is None else float(widths[i])
+                detuning = freq_range - energies[i] - offset
+                if wL <= 0.0:
+                    # Analytically this is voigt_K(detuning, wG, 0), but
+                    # evaluated in the original order so that zero-pressure
+                    # output stays bit-identical to the pre-Voigt module.
+                    spectrum += forces[i] * np.exp(-(detuning / D) ** 2)
+                    continue
+                key = round(wL, 12)
+                if key not in tables:
+                    tables[key] = voigt_table(wG, wL, reach)
+                grid, values = tables[key]
+                spectrum += forces[i] * np.interp(np.abs(detuning), grid, values)
+
+        wl3 = wl3 if wl3 is not None else (None, None, None)
+        wl4 = wl4 if wl4 is not None else (None, None, None)
+
         # Calculate spectra for He3
-        for i in range(len(r3pe)):
-            he3_plus += r3pf[i] * np.exp(-((freq_range - r3pe[i] - 40) / D3) ** 2)
-
-        for i in range(len(r3me)):
-            he3_minus += r3mf[i] * np.exp(-((freq_range - r3me[i] - 40) / D3) ** 2)
-
-        for i in range(len(r3pie)):
-            he3_pi += r3pif[i] * np.exp(-((freq_range - r3pie[i] - 40) / D3) ** 2)
+        accumulate(he3_plus, r3pe, r3pf, wl3[0], D3, 40)
+        accumulate(he3_minus, r3me, r3mf, wl3[1], D3, 40)
+        accumulate(he3_pi, r3pie, r3pif, wl3[2], D3, 40)
 
         # Calculate spectra for He4
-        for i in range(len(r4pe)):
-            he4_plus += r4pf[i] * np.exp(-((freq_range - r4pe[i]) / D4) ** 2)
-
-        for i in range(len(r4me)):
-            he4_minus += r4mf[i] * np.exp(-((freq_range - r4me[i]) / D4) ** 2)
-
-        for i in range(len(r4pie)):
-            he4_pi += r4pif[i] * np.exp(-((freq_range - r4pie[i]) / D4) ** 2)
+        accumulate(he4_plus, r4pe, r4pf, wl4[0], D4, 0)
+        accumulate(he4_minus, r4me, r4mf, wl4[1], D4, 0)
+        accumulate(he4_pi, r4pie, r4pif, wl4[2], D4, 0)
 
         return {
             'freq_range': freq_range,
