@@ -131,15 +131,29 @@ probe peak rises by a factor of ~130 between 0 and 100 mbar.
 
 ### Where it departs
 
-The Fortran assigns each line to wL0 or wL12 **by name**, which presumes J is
+The Fortran assigns each line to wL0 or wL12 by its **row in the input file**,
+hardcoded as the first three for ³He and the first for ⁴He. That presumes J is
 a good quantum number. Here the spectra are computed at arbitrary field, and
 at several tesla J is thoroughly mixed: at 6 T the J=0 character of the ³He
 2³P manifold is spread over six states at weights of 0.23 to 0.47. So
 `line_widths()` interpolates each transition's Lorentz width by its upper
-state's J=0 admixture, from `j0_weights()`. Below ~0.2 T the weights are 0 or
-1 and the two treatments agree. With wL0 = wL12, as the quoted rates make
-them, the weighting has no effect on output at all — the plumbing is there for
-when they differ.
+state's J=0 admixture, from `j0_weights()`.
+
+At 0.13 T, where the `spectre*.dat` fixtures were produced, the two agree for
+five of the six files. They differ on the π list: four transitions reach the
+2³P₀ doublet there, not three, so the Fortran's hardcoded row range leaves one
+out (A₆ → B₁₇ at 29.737 GHz). It makes no difference while wL0 and wL12 are
+equal, as the quoted rates make them — the plumbing is there for when they
+differ.
+
+### Checking it
+
+[`test/test_against_fortran.py`](../test/test_against_fortran.py) needs only
+numpy and compares every line's position, strength and level indices against
+the `spectre*.dat` files, plus the Voigt shape against a transcription of
+`funcV`/`qsimp` and the Doppler width against the `wG` formula. Current
+agreement: **6×10⁻⁷ GHz** on positions, **2×10⁻⁸** on strengths — both limited
+by the files' 8-digit formatting — and **2×10⁻⁸** relative on K(x, y).
 
 ### What this does not do
 

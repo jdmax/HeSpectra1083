@@ -26,6 +26,17 @@ the Lorentz FWHMs in GHz, as that program's prompts do; leaving them at zero
 gives the Doppler-only Gaussian. Typical rates are 12.0 MHz/mbar for ³He and
 10.4 for ⁴He[[2]](#2).
 
+Checked against the Fortran by [test/test_against_fortran.py](test/test_against_fortran.py),
+which needs only numpy:
+
+```sh
+python test/test_against_fortran.py
+```
+
+It compares every line's position, strength and level indices against the
+`spectre*.dat` files in [test/](test/), and the Voigt shape and Doppler width
+against `spectreVoigt`'s own `funcV`/`qsimp` integral and `wG` formula.
+
 ## Author
 Written in 2025 by [J. Maxwell](https://orcid.org/0000-0003-2710-4646), based on Fortran by P.J. Nacher.
 
