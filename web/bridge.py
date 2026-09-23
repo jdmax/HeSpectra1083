@@ -19,6 +19,16 @@ C_NM_GHZ = 299792458.0
 # intensity-weighted centroid (see group_transitions)
 GROUP_THRESHOLD = 2.0
 
+# Spectral width of the pumping laser assumed by the pumping readout: a
+# Gaussian of this FWHM in GHz, centred on the selected peak's centroid.
+PUMP_LASER_FWHM = 2.0
+
+# A lower level counts as one the peak pumps when one of its lines in the
+# peak is at least this fraction of the peak's strongest line. The readout is
+# normalised to the mean rate of those levels, so a weak line that happens to
+# sit in the peak cannot drag the reference down.
+PUMP_TARGET_FRACTION = 0.1
+
 # Collisional broadening lives in helium_spectra_calc, which follows
 # P.J. Nacher's spectreVoigt_w0w12: a Voigt line shape built from a Doppler
 # FWHM and two Lorentz FWHMs, wL0 for the 2^3P_0 lines and wL12 for the rest.
@@ -29,6 +39,12 @@ GROUP_THRESHOLD = 2.0
 # widths are right but the positions are still the low-pressure ones.
 
 _calculator = None
+
+# What pumping() needs to produce the readout for one row of the table that
+# compute() last returned. The readout is only ever shown for the selected
+# row, so it is made on request rather than for all ~50 rows on every
+# recompute, which would roughly double the cost of dragging a slider.
+_last_pumping = None
 
 
 def _get_calculator():
@@ -110,9 +126,15 @@ def format_transition_name(ind_lower, ind_upper, isotope):
         return f"Y{lower_sub} → Z{upper_sub}"
 
 
-def build_transitions_table(transitions, isotope, c1_ghz):
-    """Grouped transitions as a list of row dicts, sorted by intensity"""
+def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
+    """Grouped transitions as a list of row dicts, sorted by intensity.
+
+    With `pump`, also records in _last_pumping what pumping() needs to give
+    the readout for any row.
+    """
+    global _last_pumping
     rows = []
+    peaks = {}
 
     for pol_index, (pol_name, pol_data) in enumerate([('σ+', transitions['plus']),
                                                       ('σ-', transitions['minus']),
@@ -124,13 +146,16 @@ def build_transitions_table(transitions, isotope, c1_ghz):
             pol_data['ind_upper']
         )
 
-        for group in groups:
-            # The intensity-weighted centroid, which is what the grouping
-            # measures distance from and so what the row reports. A plain mean
-            # would let a line of negligible strength pull the peak's position.
+        # The intensity-weighted centroid of each peak, which is what the
+        # grouping measures distance from and so what the row reports. A plain
+        # mean would let a line of negligible strength pull the position.
+        centroids = [float(np.sum(np.asarray(g['energies']) * np.asarray(g['forces']))
+                           / np.sum(g['forces'])) for g in groups]
+        peaks[pol_index] = (pol_data, groups, centroids)
+
+        for k, group in enumerate(groups):
             total_intensity = float(np.sum(group['forces']))
-            centroid = float(np.sum(np.asarray(group['energies']) *
-                                    np.asarray(group['forces'])) / total_intensity)
+            centroid = centroids[k]
 
             centroid_abs = c1_ghz + centroid
             centroid_wavelength = C_NM_GHZ / centroid_abs if centroid_abs else 0.0
@@ -195,14 +220,119 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                 'span_min': span_min,
                 'span_max': span_max,
                 'members': members,
+                '_peak': (pol_index, k),
             })
 
     # Strongest peaks first
     rows.sort(key=lambda r: r['_sort'])
     for row in rows:
         del row['_sort']
+    _last_pumping = {
+        'pump': pump, 'isotope': isotope, 'peaks': peaks,
+        'rows': [row.pop('_peak') for row in rows],
+    } if pump else None
+    for row in rows:
+        row.pop('_peak', None)
     return rows
 
+
+def _format_rate(rel):
+    """A relative rate as a short percentage, with sensible precision."""
+    pct = 100.0 * rel
+    if pct >= 10:
+        return f"{pct:.0f}%"
+    if pct >= 1:
+        return f"{pct:.1f}%"
+    if pct >= 0.01:
+        return f"{pct:.2f}%"
+    return "<0.01%" if pct > 0 else "0%"
+
+
+def _pumping_context(pump, pol_data, centroids, isotope):
+    """Rates for a laser on every peak of one polarisation, in one Voigt call.
+
+    Each row's readout is then only bookkeeping, and the line names are
+    formatted once per polarisation rather than once per row and level.
+    """
+    rates, per_line = pump['calc'].pumping_rates(
+        pol_data['energies'], pol_data['forces'], pol_data['ind_lower'],
+        np.asarray(centroids), pump['wG'], pump['wL'], PUMP_LASER_FWHM,
+        pump['n_lower'])
+    lower = np.asarray(pol_data['ind_lower'], dtype=int)
+    upper = np.asarray(pol_data['ind_upper'], dtype=int)
+    return {
+        'rates': rates,
+        'per_line': per_line,
+        'energies': np.asarray(pol_data['energies'], dtype=float),
+        'names': [format_transition_name(lo, up, isotope) for lo, up in zip(lower, upper)],
+        'by_level': [np.where(lower == i)[0] for i in range(pump['n_lower'])],
+    }
+
+
+def _pumping_readout(context, k, group, centroid):
+    """How fast a laser on peak k empties each lower level.
+
+    The laser is a Gaussian of PUMP_LASER_FWHM on the peak's centroid, driving
+    every line of the peak's polarisation. Rates are per atom and relative to
+    the mean over the levels the peak pumps, so '0.48%' reads directly as
+    leakage.
+    """
+    rates = context['rates'][k]
+    per_line = context['per_line'][k]
+
+    strongest = max(group['forces'])
+    targeted = sorted({int(lo) for lo, s in zip(group['ind_lower'], group['forces'])
+                       if s >= PUMP_TARGET_FRACTION * strongest})
+    reference = float(np.mean(rates[targeted]))
+
+    levels = []
+    for i, mine in enumerate(context['by_level']):
+        rel = float(rates[i] / reference) if reference > 0 else 0.0
+        via = []
+        if rates[i] > 0:
+            # The two lines doing most of it, if they do at least 1%. The
+            # sort key is rounded, as elsewhere, so near-ties order the same
+            # way on every numpy build.
+            share = per_line[mine] / rates[i]
+            for j in mine[np.lexsort((mine, -np.round(share, 9)))][:2]:
+                if per_line[j] < 0.01 * rates[i]:
+                    break
+                via.append({
+                    'name': context['names'][j],
+                    'share': f"{100.0 * per_line[j] / rates[i]:.0f}",
+                    'offset': f"{round(context['energies'][j] - centroid, 1) + 0.0:+.1f}",
+                })
+        levels.append({
+            'rel': rel,
+            'text': _format_rate(rel),
+            'targeted': i in targeted,
+            'has_lines': bool(mine.size),
+            'via': via,
+        })
+    return {'laser_fwhm': f"{PUMP_LASER_FWHM:.1f}", 'levels': levels}
+
+
+
+def pumping(row_index):
+    """The pumping readout for one row of the table compute() last returned.
+
+    None if that compute had no readout or the row is out of range.
+    """
+    last = _last_pumping
+    if last is None or not 0 <= row_index < len(last['rows']):
+        return None
+    pol_index, k = last['rows'][row_index]
+    pol_data, groups, centroids = last['peaks'][pol_index]
+    context = _pumping_context(last['pump'], pol_data, [centroids[k]], last['isotope'])
+    return _pumping_readout(context, 0, groups[k], centroids[k])
+
+
+def pumping_js(row_index):
+    """pumping() converted to plain JS objects, or None"""
+    import js
+    from pyodide.ffi import to_js
+    readout = pumping(int(row_index))
+    return None if readout is None else to_js(readout, dict_converter=js.Object.fromEntries)
 
 def _spectra_series(spectra_data, isotope, x_axis_type):
     """x/y series for the spectra plot, per isotope and x-axis choice"""
@@ -349,7 +479,11 @@ def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
     return {
         'title': title,
         'spectra': _spectra_series(full_results['spectra_data'], isotope, x_axis_type),
-        'table': build_transitions_table(transitions, isotope, calculator.c1_ghz),
+        'table': build_transitions_table(
+            transitions, isotope, calculator.c1_ghz,
+            pump={'calc': calculator, 'wG': doppler_fwhm, 'wL': wL,
+                  'n_lower': len(full_results['energy_levels'][
+                      'W3S' if isotope == 'He3' else 'W4S'])}),
         'levels': _level_diagram(full_results['energy_levels'], isotope),
         'doppler': f"{doppler_fwhm:.3f}",
         'lorentz': f"{lorentz_fwhm:.3f}",

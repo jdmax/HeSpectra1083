@@ -104,6 +104,7 @@ const state = {
   xAxis: 'Frequency Offset',
   P: 0,
   selected: null,   // index into the current table, or null
+  pump: null,       // pumping readout for the selected row, fetched on demand
   data: null,       // last result from bridge.compute_js
 };
 
@@ -280,6 +281,7 @@ function recompute() {
     if (state.selected !== null && state.selected >= state.data.table.length) {
       state.selected = null;
     }
+    fetchPumping();
     drawSpectra();
     drawTable();
     drawLevels();
@@ -291,6 +293,14 @@ function rerender() {
   drawSpectra();
   drawLevels();
   markSelectedRow();
+}
+
+/**
+ * The pumping readout for the selected row. bridge.py makes it on request
+ * rather than for every row of every recompute, as only this one is shown.
+ */
+function fetchPumping() {
+  state.pump = state.selected === null ? null : bridge.pumping_js(state.selected) || null;
 }
 
 function selectedRow() {
@@ -373,6 +383,29 @@ function drawSpectra() {
   Plotly.react('spectra-plot', traces, layout, PLOT_CONFIG);
 }
 
+// Leaks below this fraction of the pumped rate are left off the diagram,
+// though they still appear in the level's hover
+const PUMP_LABEL_FLOOR = 0.001;
+
+/** Hover lines for each lower level, describing the selected peak's pumping. */
+function pumpHoverText(pump, polarization) {
+  return pump.levels.map(rate => {
+    let text = '<br><br>';
+    if (rate.targeted) {
+      text += `<b>Pumped by this peak</b>: ${rate.text} of the mean`;
+    } else if (!rate.has_lines) {
+      text += `No ${polarization} lines from this level`;
+    } else {
+      text += `<b>Emptied at ${rate.text}</b> of the pumped rate`;
+    }
+    for (const v of rate.via) {
+      text += `<br>${v.share}% via ${v.name} (${v.offset} GHz from laser)`;
+    }
+    return text + `<br><i>${pump.laser_fwhm} GHz laser on the peak centroid;`
+      + ' rates per atom</i>';
+  });
+}
+
 function drawLevels() {
   const THEME = palette();
   const lv = state.data.levels;
@@ -382,15 +415,15 @@ function drawLevels() {
   // The bars carry their own hover text; `e` is the plotted energy, which for
   // the upper manifold already includes the display offset, so the label uses
   // the level's own scale instead.
-  const manifold = (levels, color, offset) => {
+  const manifold = (levels, color, offset, extra = []) => {
     const x = [], y = [], text = [];
-    for (const level of levels) {
+    levels.forEach((level, i) => {
       const label = `${level.label.trim()}<br>m<sub>F</sub> = ${formatMf(level.mf)}`
-        + `<br>${(level.e - offset).toFixed(3)} GHz`;
+        + `<br>${(level.e - offset).toFixed(3)} GHz` + (extra[i] || '');
       x.push(level.mf - half, level.mf + half, null);
       y.push(level.e, level.e, null);
       text.push(label, label, '');
-    }
+    });
     return {
       x, y, text, mode: 'lines', line: { color, width: 3 },
       hoverinfo: 'text', hoverlabel: { bgcolor: THEME.grid, font: { color: THEME.text } },
@@ -409,16 +442,34 @@ function drawLevels() {
     showlegend: false };
   const SHAFT_SAMPLES = 14;
 
+  // Pumping readout for the selected peak: how fast a laser on it empties
+  // each lower level, relative to the levels it pumps. Labelled only where it
+  // says something - the pumped levels, and leaks of at least 0.1% - with the
+  // full breakdown in the bar's hover.
+  const pump = state.pump;
+  const pumpExtra = pump ? pumpHoverText(pump, selectedRow().polarization) : [];
+
   const annotations = [];
-  for (const levels of [lv.P, lv.S]) {
-    for (const level of levels) {
+  const levelLabel = (level, text) => annotations.push({
+    x: level.mf + half, y: level.e, text,
+    showarrow: false, xanchor: 'left', yanchor: 'middle',
+    font: { size: 10, color: THEME.muted },
+  });
+  lv.P.forEach(level => levelLabel(level, level.label));
+  lv.S.forEach((level, i) => {
+    levelLabel(level, level.label);
+    const rate = pump && pump.levels[i];
+    if (rate && (rate.targeted || rate.rel >= PUMP_LABEL_FLOOR)) {
+      // Centred under the bar rather than after its label: at high field the
+      // lower levels pair up at nearly the same energy in neighbouring m_F
+      // columns, and a label running to the right collides with the next one.
       annotations.push({
-        x: level.mf + half, y: level.e, text: level.label,
-        showarrow: false, xanchor: 'left', yanchor: 'middle',
-        font: { size: 10, color: THEME.muted },
+        x: level.mf, y: level.e, text: rate.text,
+        showarrow: false, xanchor: 'center', yanchor: 'top', yshift: -3,
+        font: { size: 9, color: THEME.muted },
       });
     }
-  }
+  });
 
   // Arrows for the selected group of transitions. Driven from `members`, which
   // is ordered by frequency and carries each transition's own numbers, so the
@@ -490,7 +541,7 @@ function drawLevels() {
 
   Plotly.react('levels-plot', [
     manifold(lv.P, THEME.levelUpper, lv.p_offset),
-    manifold(lv.S, THEME.levelLower, 0),
+    manifold(lv.S, THEME.levelLower, 0, pumpExtra),
     hoverTargets,
   ], layout, PLOT_CONFIG);
 }
@@ -535,6 +586,7 @@ function drawTable() {
 
     tr.addEventListener('click', () => {
       state.selected = state.selected === index ? null : index;  // click again to clear
+      fetchPumping();
       rerender();
     });
 

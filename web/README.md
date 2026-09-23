@@ -90,12 +90,13 @@ Then point the `<script>` tag at `plotly.min.js` and set `PYODIDE_URL` in
 
 ## Verification
 
-Two tests in [`test/`](../test/) need only numpy:
+Three tests in [`test/`](../test/) need only numpy:
 
 - `test_against_fortran.py` checks the physics against P.J. Nacher's Fortran
   (see [Checking it](#checking-it) below).
 - `test_grouping.py` checks the centroid grouping over a field and
   temperature scan (see [Reading a peak's membership](#reading-a-peaks-membership)).
+- `test_pumping.py` checks the pumping rates (see [Pumping readout](#pumping-readout)).
 
 The page's output was also run under Pyodide and compared with CPython across
 both isotopes, both x-axes and a range of fields and temperatures: every
@@ -192,7 +193,7 @@ broadening does blend lines, but it acts through the Lorentzian wings of
 *strong* lines, often far off: pumping the strong σ⁻ peak at 5 T and
 100 mbar empties A₅ at ~0.5% of the pumped rate, and 98% of that comes from
 the wing of the A₅→B₁₃ probe line 13.8 GHz away. No peak definition would
-capture that, so the hover's per-line intensities are the tool for it.
+capture that; the pumping readout below does.
 
 Three things in the page show what a peak contains:
 
@@ -204,6 +205,29 @@ Three things in the page show what a peak contains:
   frequency, wavelength, intensity, its share of the peak, and its offset from
   the centroid. Hovering a level bar gives its label, m_F and energy on its own
   manifold's scale.
+
+## Pumping readout
+
+Selecting a row puts a laser on that peak's centroid and shows, under each
+2³S bar of the level diagram, how fast it empties that level. The rate for
+level i is Σ S·K(ν_L − ν) over the lines from i in the peak's polarisation,
+from `HeliumSpectraCalculator.pumping_rates()`. It is relative to the mean over
+the levels the peak pumps: those with a line in the peak at least 10% as strong
+as its strongest. So 100% means pumped, and 0.47% reads directly as leakage.
+
+- **Only what says something is labelled.** The pumped levels always are;
+  others once they reach 0.1%. At 5 T the A₅/A₆ leak is labelled at 100 mbar
+  and disappears at 1 mbar. Hovering a lower level gives the rate and the lines
+  responsible, e.g. "0.47%, 97% via A₅→B₁₃ (+13.8 GHz from laser)".
+- **The laser is fixed at 2 GHz FWHM, Gaussian** (`PUMP_LASER_FWHM` in
+  `bridge.py`). A Gaussian laser on a Voigt line gives a Voigt whose Gaussian
+  width adds in quadrature, √(wG² + wLaser²); `test/test_pumping.py` checks that
+  against a brute-force convolution to 6×10⁻¹¹.
+- **Rates are per atom.** Level populations, and so the spin temperature, are
+  not included; that would need a polarisation control.
+- **It is made on request.** Only the selected row's readout is ever shown, so
+  `bridge.pumping()` produces it when a row is selected rather than for all ~50
+  rows on every recompute, which had doubled the cost of dragging a slider.
 
 ## Notes
 
@@ -247,6 +271,6 @@ Three things in the page show what a peak contains:
   (Y/Z) labels and the vertical split carry the distinction instead. Setting
   `levelLower` to a neutral (`#848c99` dark, `#6b7280` light) in `app.js`
   removes it if that ever matters.
-- Recalculation costs about 30 ms, with or without pressure broadening, so
-  the plots follow the sliders directly rather than through a server round
+- Recalculation costs about 30–38 ms, with or without pressure broadening,
+  so the plots follow the sliders directly rather than through a server round
   trip.

@@ -346,6 +346,42 @@ class HeliumSpectraCalculator:
         p0 = j0_weight[np.asarray(ind_upper, dtype=int)]
         return p0 * wL0 + (1.0 - p0) * wL12
 
+    def pumping_rates(self, energies, forces, ind_lower, laser_freq, wG,
+                      wL=0.0, laser_fwhm=0.0, n_lower=None):
+        """Excitation rate per atom out of each lower level, for one laser.
+
+        The rate for level i is proportional to the sum, over the lines from
+        i, of S * K(laser_freq - nu), with K the Voigt line shape above. Pass
+        the lines of one polarisation, since a laser of that polarisation
+        drives only those. A laser with a Gaussian spectrum of FWHM
+        laser_fwhm widens the Gaussian part in quadrature (a Gaussian
+        convolved with a Voigt is a Voigt), so wG becomes
+        sqrt(wG^2 + laser_fwhm^2).
+
+        Level populations are not included: these are rates per atom, so the
+        spin temperature does not enter. Only ratios between levels are
+        meaningful; the units are those of K.
+
+        laser_freq may be an array, to evaluate several laser settings in one
+        Voigt call; the results then gain a leading axis over them.
+
+        Returns (rate for each lower level, contribution of each line).
+        """
+        energies = np.asarray(energies, dtype=float)
+        forces = np.asarray(forces, dtype=float)
+        lower = np.asarray(ind_lower, dtype=int)
+        if n_lower is None:
+            n_lower = int(lower.max()) + 1 if lower.size else 0
+        wG_eff = float(np.hypot(wG, laser_fwhm))
+        laser = np.atleast_1d(np.asarray(laser_freq, dtype=float))
+        per_line = forces * voigt_K(laser[:, None] - energies[None, :], wG_eff, wL)
+        by_level = np.zeros((energies.size, n_lower))
+        by_level[np.arange(energies.size), lower] = 1.0
+        rates = per_line @ by_level
+        if np.ndim(laser_freq) == 0:
+            return rates[0], per_line[0]
+        return rates, per_line
+
     def calculate_full_results(self, B, Temp=300, wL0=0.0, wL12=0.0):
         """
         Calculate complete results including all intermediate values needed for file output.
