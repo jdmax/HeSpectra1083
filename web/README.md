@@ -119,9 +119,16 @@ and native NumPy builds.
   CSS values are set once per mode in `:root`, under a
   `prefers-color-scheme` block, and under `:root[data-theme="..."]`.
   Every palette was checked against its own background for lightness band,
-  chroma, colour-vision separation and contrast. The selection marker is
-  achromatic in both modes so it reads as an annotation rather than a fourth
-  series; selected table rows are marked in their own polarization colour,
-  matching the level-diagram arrows.
+  chroma, colour-vision separation and contrast.
+- Two things on the charts are deliberately achromatic. The spectra plot's
+  selection marker is an annotation, not a fourth series. The energy levels
+  are structure: selecting a transition draws arrows in the polarization
+  colour inside that diagram, so coloured bars would have to be a fourth and
+  fifth categorical colour alongside all three series, which no pair can
+  clear. Neutral bars separate from the arrows by the absence of hue, which
+  survives every form of colour blindness, and the two manifolds are told
+  apart by a ~2:1 lightness step, their position and the A/B (Y/Z) labels.
+  Selected table rows are marked in their own polarization colour, matching
+  the arrows.
 - Recalculation costs about 25 ms, so the plots follow the sliders directly
   rather than through a server round trip.

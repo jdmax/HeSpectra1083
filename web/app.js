@@ -28,14 +28,23 @@ const SERIES_LABELS = { plus: 'σ+', minus: 'σ-', pi: 'π' };
 //
 // The marker is achromatic in both modes on purpose: it is an annotation, not
 // a fourth series, and every chromatic candidate collided with red or green.
+//
+// The energy levels are achromatic for the same reason. Selecting a transition
+// draws arrows in the polarization colour *inside* the level diagram, so the
+// bars would have to be a fourth and fifth categorical colour alongside all
+// three series - which no pair can clear. Making them structure rather than
+// data separates them by the absence of hue, which holds under every form of
+// colour blindness, and leaves the arrows as the only coloured thing there.
+// The two manifolds are told apart by a ~2:1 lightness step, their position,
+// and the A/B (Y/Z) labels.
 const PALETTE = {
   light: {
     series: { plus: '#2a78d6', minus: '#e66767', pi: '#006d00' },
     text: '#1a1a19',
     muted: '#52514e',
     grid: '#d6d9de',
-    levelUpper: '#eb6834',   // 2³P states
-    levelLower: '#4a3aa7',   // 2³S states
+    levelUpper: '#3f4652',   // 2³P states
+    levelLower: '#6b7280',   // 2³S states
     marker: '#52514e',
   },
   dark: {
@@ -43,8 +52,8 @@ const PALETTE = {
     text: '#e8e8e5',
     muted: '#9ea3ad',
     grid: '#2f333c',
-    levelUpper: '#d95926',
-    levelLower: '#9085e9',
+    levelUpper: '#c9cdd6',
+    levelLower: '#848c99',
     marker: '#c3c2b7',
   },
 };
@@ -391,7 +400,7 @@ function drawLevels() {
     // title into the "2³P States" label and crowded the m_F ticks.
     margin: { t: 8, l: 62, r: 8, b: 44 },
     xaxis: {
-      title: { text: 'Magnetic Quantum Number m_F' },
+      title: { text: 'Magnetic Quantum Number m<sub>F</sub>' },
       tickmode: 'array', tickvals: lv.mF_values, ticktext: lv.mF_labels,
       gridcolor: THEME.grid, zerolinecolor: THEME.grid,
       linecolor: THEME.grid, tickcolor: THEME.grid,
