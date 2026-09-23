@@ -14,6 +14,9 @@ from helium_spectra_calc import HeliumSpectraCalculator
 # c expressed so that (nm) = C_NM_GHZ / (GHz), matching helium_spectra_ui.py
 C_NM_GHZ = 299792458.0
 
+# Single-linkage chaining width used by group_transitions()
+GROUP_THRESHOLD = 2.0
+
 _calculator = None
 
 
@@ -25,7 +28,7 @@ def _get_calculator():
     return _calculator
 
 
-def group_transitions(energies, forces, ind_lower, ind_upper, threshold=2.0):
+def group_transitions(energies, forces, ind_lower, ind_upper, threshold=GROUP_THRESHOLD):
     """Group transitions that are within threshold GHz of each other"""
     if len(energies) == 0:
         return []
@@ -123,6 +126,36 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                 transition_names.append(format_transition_name(
                     group['ind_lower'][i], group['ind_upper'][i], isotope))
 
+            # Per-transition detail, in frequency order, for the level diagram
+            # hover. group_transitions() uses single-linkage chaining: each
+            # member is within the threshold of the PREVIOUS one, not of the
+            # group's centre, so a group can span far more than the threshold.
+            # 'gap' is what the grouping actually tested, and 'share' shows how
+            # little a chained-on outlier can contribute.
+            order = np.argsort(group['energies'])
+            members = []
+            previous = None
+            for i in order:
+                energy = float(group['energies'][i])
+                force = float(group['forces'][i])
+                abs_freq = c1_ghz + energy
+                members.append({
+                    'name': format_transition_name(
+                        group['ind_lower'][i], group['ind_upper'][i], isotope),
+                    'lower': int(group['ind_lower'][i]),
+                    'upper': int(group['ind_upper'][i]),
+                    'frequency': f"{energy:.3f}",
+                    'wavelength': f"{C_NM_GHZ / abs_freq:.6f}" if abs_freq else "0",
+                    'intensity': f"{force:.4f}",
+                    'share': f"{100.0 * force / total_intensity:.1f}"
+                             if total_intensity else "0.0",
+                    'gap': "" if previous is None else f"{energy - previous:.3f}",
+                })
+                previous = energy
+
+            energies = np.asarray(group['energies'], dtype=float)
+            span_min, span_max = float(energies.min()), float(energies.max())
+
             rows.append({
                 # Sort key only, dropped before the rows are returned.
                 # Symmetry makes many groups exactly equal in intensity, and
@@ -142,6 +175,12 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                 'intensity': f"{total_intensity:.4f}",
                 'lower': [int(v) for v in group['ind_lower']],
                 'upper': [int(v) for v in group['ind_upper']],
+                # How wide the group actually is, which the averaged frequency
+                # above does not reveal
+                'span': f"{span_max - span_min:.3f}",
+                'span_min': span_min,
+                'span_max': span_max,
+                'members': members,
             })
 
     # Sort by intensity (descending), as the Streamlit DataFrame did
@@ -245,6 +284,9 @@ def _level_diagram(energy_levels, isotope):
                'e': float(W_P_offset[i]),
                'label': f" {label_P}{to_subscript(str(i + 1))}"}
               for i in range(len(W_P))],
+        # The P energies above include this; the hover subtracts it so each
+        # level is reported on its own manifold's scale.
+        'p_offset': float(P_OFFSET),
         'mF_values': [float(v) for v in mF_values],
         'mF_labels': mF_labels,
         'tickvals': tickvals,
@@ -265,11 +307,18 @@ def compute(B, Temp, isotope, x_axis_type):
     transitions = (full_results['transitions']['he3'] if isotope == 'He3'
                    else full_results['transitions']['he4'])
 
+    # The grouping threshold is a fixed 2 GHz; the Doppler width is the
+    # physical scale that decides whether lines actually blend into one peak,
+    # so the page shows it for comparison.
+    doppler = full_results['doppler_widths']['D3' if isotope == 'He3' else 'D4']
+
     return {
         'title': f'{isotope} Spectra at B = {B:.4f} T, T = {Temp:.0f} K',
         'spectra': _spectra_series(full_results['spectra_data'], isotope, x_axis_type),
         'table': build_transitions_table(transitions, isotope, calculator.c1_ghz),
         'levels': _level_diagram(full_results['energy_levels'], isotope),
+        'doppler': f"{float(doppler):.3f}",
+        'group_threshold': f"{GROUP_THRESHOLD:.1f}",
     }
 
 

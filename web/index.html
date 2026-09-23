@@ -123,7 +123,11 @@
     <div class="columns">
       <section>
         <h3>Transitions Table</h3>
-        <p class="hint"><em>Select a row to highlight a group of transitions.</em></p>
+        <p class="hint">
+          <em>Select a row to highlight a group of transitions, then hover an
+          arrow on the diagram for its exact frequency.</em>
+          <span id="grouping-note"></span>
+        </p>
         <div class="table-wrap">
           <table id="transitions">
             <thead>
@@ -131,6 +135,7 @@
                 <th class="col-pol">Polarization</th>
                 <th>Avg Rel Freq (GHz)</th>
                 <th>Avg &lambda; (nm)</th>
+                <th title="Frequency extent from the lowest to the highest transition in the group">Span (GHz)</th>
                 <th>Transitions</th>
                 <th>Intensity</th>
               </tr>

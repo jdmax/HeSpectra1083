@@ -95,6 +95,31 @@ compared with CPython — every displayed string is identical and floats agree
 to about 1e-13, the difference being LAPACK rounding between the WebAssembly
 and native NumPy builds.
 
+## Reading a peak's membership
+
+A row in the transitions table is a *group* of lines, not a single one, and
+`group_transitions()` builds those groups by single linkage: a line joins if it
+is within 2 GHz of the **previous** member, not of the group's centre. Groups
+can therefore chain out to any width, and the averaged frequency the row shows
+does not reveal that. Three things in the page exist to make it visible:
+
+- **Span (GHz)** in the table is the group's full extent. It is highlighted
+  when it exceeds the Doppler width, i.e. when the members have not actually
+  merged into one peak. The Doppler width for the current temperature is
+  printed above the table next to the grouping threshold.
+- **The shaded band** on the spectra plot covers the selected group's extent,
+  against the peak it is named for.
+- **Hovering** a transition arrow on the level diagram gives that single line's
+  frequency, wavelength, intensity, its share of the group, and its gap from
+  the previous line — the quantity the grouping actually tested. Hovering a
+  level bar gives its label, m_F and energy on its own manifold's scale.
+
+A worked example: above **B = 4.039 T** an A₅ line joins the strong σ⁻ group.
+It carries about 0.01% of the group's intensity and sits ~1.9 GHz from the
+nearest strong line. The threshold is fixed in frequency while the Doppler
+width scales with temperature, so that 4.039 T figure is identical at 77 K and
+at 600 K — the membership change is an artefact of the grouping, not physics.
+
 ## Notes
 
 - Row order in the transitions table is now deterministic. Many groups are

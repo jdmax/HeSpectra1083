@@ -294,6 +294,15 @@ function selectedRow() {
   return state.selected === null ? null : state.data.table[state.selected];
 }
 
+/** m_F as a signed integer or half-integer, matching the axis tick labels. */
+function formatMf(value) {
+  const sign = value < 0 ? '-' : (value > 0 ? '+' : '');
+  const magnitude = Math.abs(value);
+  return Number.isInteger(magnitude)
+    ? `${sign}${magnitude}`
+    : `${sign}${Math.round(magnitude * 2)}/2`;
+}
+
 function drawSpectra() {
   const s = state.data.spectra;
   const THEME = palette();
@@ -309,6 +318,23 @@ function drawSpectra() {
     // Both axes are derived from the same absolute frequency, so the table
     // value can be used directly whichever axis is showing.
     const x = Number(state.xAxis === 'Frequency Offset' ? row.frequency : row.wavelength);
+
+    // A band across the group's full extent, not just its mean. The grouping
+    // chains at a fixed threshold, so a group can reach well beyond the peak
+    // it is named for; this shows how much of the axis it actually claims.
+    // members is ordered by frequency, so its ends are the extremes on either
+    // axis, and both coordinates are already converted.
+    const key = state.xAxis === 'Frequency Offset' ? 'frequency' : 'wavelength';
+    const edges = [row.members[0][key], row.members[row.members.length - 1][key]]
+      .map(Number);
+    if (Math.abs(edges[1] - edges[0]) > 0) {
+      shapes.push({
+        type: 'rect', xref: 'x', yref: 'paper',
+        x0: Math.min(...edges), x1: Math.max(...edges), y0: 0, y1: 1,
+        fillcolor: THEME.marker, opacity: 0.12, line: { width: 0 }, layer: 'below',
+      });
+    }
+
     shapes.push({
       type: 'line', xref: 'x', yref: 'paper',
       x0: x, x1: x, y0: 0, y1: 1,
@@ -349,15 +375,36 @@ function drawLevels() {
   const lv = state.data.levels;
   const half = lv.line_width / 2;
 
-  // One trace per manifold, with nulls separating the individual level bars
-  const manifold = (levels, color) => {
-    const x = [], y = [];
+  // One trace per manifold, with nulls separating the individual level bars.
+  // The bars carry their own hover text; `e` is the plotted energy, which for
+  // the upper manifold already includes the display offset, so the label uses
+  // the level's own scale instead.
+  const manifold = (levels, color, offset) => {
+    const x = [], y = [], text = [];
     for (const level of levels) {
+      const label = `${level.label.trim()}<br>m<sub>F</sub> = ${formatMf(level.mf)}`
+        + `<br>${(level.e - offset).toFixed(3)} GHz`;
       x.push(level.mf - half, level.mf + half, null);
       y.push(level.e, level.e, null);
+      text.push(label, label, '');
     }
-    return { x, y, mode: 'lines', line: { color }, hoverinfo: 'skip', showlegend: false };
+    return {
+      x, y, text, mode: 'lines', line: { color, width: 3 },
+      hoverinfo: 'text', hoverlabel: { bgcolor: THEME.grid, font: { color: THEME.text } },
+      showlegend: false,
+    };
   };
+
+  // Invisible hover targets along each selected transition: the arrows are
+  // annotations, which cannot be hovered. Plotly's 'closest' hovermode snaps
+  // to data points rather than to a position along a line, so the shaft is
+  // sampled. The samples stop short of both ends, leaving the level bars their
+  // own hover instead of being shadowed by a transition endpoint.
+  const hoverTargets = { x: [], y: [], text: [], mode: 'markers',
+    marker: { size: 12, color: 'rgba(0,0,0,0)' },
+    hoverinfo: 'text', hoverlabel: { bgcolor: THEME.grid, font: { color: THEME.text } },
+    showlegend: false };
+  const SHAFT_SAMPLES = 14;
 
   const annotations = [];
   for (const levels of [lv.P, lv.S]) {
@@ -370,12 +417,14 @@ function drawLevels() {
     }
   }
 
-  // Arrows for the selected group of transitions
+  // Arrows for the selected group of transitions. Driven from `members`, which
+  // is ordered by frequency and carries each transition's own numbers, so the
+  // arrow and its hover text cannot get out of step.
   const row = selectedRow();
   if (row) {
-    for (let i = 0; i < row.lower.length; i++) {
-      const from = lv.S[row.lower[i]];
-      const to = lv.P[row.upper[i]];
+    for (const member of row.members) {
+      const from = lv.S[member.lower];
+      const to = lv.P[member.upper];
       if (!from || !to) continue;
       annotations.push({
         x: to.mf, y: to.e, ax: from.mf, ay: from.e,
@@ -383,6 +432,18 @@ function drawLevels() {
         showarrow: true, arrowhead: 2, arrowsize: 1,
         arrowwidth: 1.5, arrowcolor: colorForPol(row.polarization),
       });
+
+      const text = `<b>${member.name}</b>`
+        + `<br>${member.frequency} GHz`
+        + `<br>${member.wavelength} nm`
+        + `<br>intensity ${member.intensity} (${member.share}% of peak)`
+        + (member.gap ? `<br>${member.gap} GHz from the previous line` : '');
+      for (let s = 0; s < SHAFT_SAMPLES; s++) {
+        const t = 0.12 + (0.76 * s) / (SHAFT_SAMPLES - 1);
+        hoverTargets.x.push(from.mf + (to.mf - from.mf) * t);
+        hoverTargets.y.push(from.e + (to.e - from.e) * t);
+        hoverTargets.text.push(text);
+      }
     }
   }
 
@@ -424,14 +485,23 @@ function drawLevels() {
     uirevision: state.isotope,
   };
 
-  Plotly.react('levels-plot',
-    [manifold(lv.P, THEME.levelUpper), manifold(lv.S, THEME.levelLower)],
-    layout, PLOT_CONFIG);
+  Plotly.react('levels-plot', [
+    manifold(lv.P, THEME.levelUpper, lv.p_offset),
+    manifold(lv.S, THEME.levelLower, 0),
+    hoverTargets,
+  ], layout, PLOT_CONFIG);
 }
 
 function drawTable() {
   const tbody = document.querySelector('#transitions tbody');
   tbody.replaceChildren();
+
+  // The threshold is fixed in frequency while the Doppler width follows the
+  // temperature, so which lines get grouped is not purely physical. Showing
+  // both lets the two be compared.
+  document.getElementById('grouping-note').textContent =
+    ` Grouped when successive lines are within ${state.data.group_threshold} GHz`
+    + ` of each other; Doppler width here is ${state.data.doppler} GHz.`;
 
   state.data.table.forEach((row, index) => {
     const tr = document.createElement('tr');
@@ -441,6 +511,9 @@ function drawTable() {
       [row.polarization, 'pol'],
       [row.frequency, ''],
       [row.wavelength, ''],
+      // Flagged when the group reaches wider than the Doppler width, i.e. when
+      // its members do not actually merge into a single peak
+      [row.span, Number(row.span) > Number(state.data.doppler) ? 'span wide' : 'span'],
       [row.transitions, ''],
       [row.intensity, ''],
     ];

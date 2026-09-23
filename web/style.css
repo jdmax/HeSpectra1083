@@ -18,6 +18,7 @@
   --sel-bg: #eef3fb;
   --row-hover: #f6f8fa;
   --error: #c0392b;
+  --warn: #a15c00;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,6 +35,7 @@
     --sel-bg: #22252c;
     --row-hover: #1b1e24;
     --error: #e66767;
+    --warn: #e3b341;
   }
 }
 
@@ -50,6 +52,7 @@
   --sel-bg: #22252c;
   --row-hover: #1b1e24;
   --error: #e66767;
+  --warn: #e3b341;
 }
 
 * { box-sizing: border-box; }
@@ -249,6 +252,11 @@ tbody tr.selected { background: var(--sel-bg); }
 
 .col-pol { width: 1%; }
 td.pol { font-weight: 600; }
+
+/* A group reaching wider than the Doppler width has not really merged into
+   one peak, so the number is marked rather than left to be read past. */
+td.span { font-variant-numeric: tabular-nums; }
+td.span.wide { color: var(--warn); font-weight: 600; }
 
 footer {
   text-align: center;
