@@ -1,7 +1,10 @@
 # Static (browser) build
 
-The same calculator as the Streamlit app, with no server behind it.
-`helium_spectra_calc.py` runs unchanged in the browser under
+The calculator's main interface, with no server behind it. It began as a
+port of the Streamlit app (`helium_spectra_ui.py`), which is being
+deprecated: the Streamlit version has neither pressure broadening nor the
+centroid grouping described below. `helium_spectra_calc.py` runs in the
+browser under
 [Pyodide](https://pyodide.org) (CPython compiled to WebAssembly); Plotly.js
 draws the figures. Because everything runs on the visitor's machine, this can
 be served from any plain static file host — a `public_html` directory, for
@@ -17,9 +20,9 @@ example.
 | `bridge.py` | Runs in Pyodide; wraps `helium_spectra_calc.py` and returns plain data |
 | `deploy.sh` | Copies the above plus `helium_spectra_calc.py` into a target directory |
 
-`bridge.py` is a direct port of the presentation half of
-`helium_spectra_ui.py` with Streamlit, pandas and plotly removed. The physics
-module is imported as-is and is never duplicated.
+`bridge.py` holds the presentation logic: grouping lines into peaks and
+formatting the table and diagram. The physics module is imported as-is and is
+never duplicated.
 
 ## Running locally
 
@@ -85,15 +88,19 @@ curl -O https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.0.1/plotly.min.js
 Then point the `<script>` tag at `plotly.min.js` and set `PYODIDE_URL` in
 `app.js` to `'pyodide/'`.
 
-## Verifying against the Streamlit app
+## Verification
 
-`bridge.py` was checked against `helium_spectra_ui.py` over
-B = 0.0001 / 0.5 / 1 / 4 / 6.5 T and T = 77 / 300 / 450 / 1000 K, for both
-isotopes and both x-axes: spectra, transition table and level-diagram
-geometry all match exactly. The same cases were then run under Pyodide and
-compared with CPython — every displayed string is identical and floats agree
-to about 1e-13, the difference being LAPACK rounding between the WebAssembly
-and native NumPy builds.
+Two tests in [`test/`](../test/) need only numpy:
+
+- `test_against_fortran.py` checks the physics against P.J. Nacher's Fortran
+  (see [Checking it](#checking-it) below).
+- `test_grouping.py` checks the centroid grouping over a field and
+  temperature scan (see [Reading a peak's membership](#reading-a-peaks-membership)).
+
+The page's output was also run under Pyodide and compared with CPython across
+both isotopes, both x-axes and a range of fields and temperatures: every
+displayed string is identical and floats agree to about 1e-13, the difference
+being LAPACK rounding between the WebAssembly and native NumPy builds.
 
 ## Pressure broadening
 
@@ -164,36 +171,48 @@ are right, but the positions are still the low-pressure ones.
 
 ## Reading a peak's membership
 
-A row in the transitions table is a *group* of lines, not a single one, and
-`group_transitions()` builds those groups by single linkage: a line joins if it
-is within 2 GHz of the **previous** member, not of the group's centre. Groups
-can therefore chain out to any width, and the averaged frequency the row shows
-does not reveal that. Three things in the page exist to make it visible:
+A row in the transitions table is a *peak*: a group of lines, not a single
+one. `group_transitions()` builds peaks around **intensity-weighted
+centroids**. Lines are taken strongest first; each joins the nearest peak
+whose centroid lies within 2 GHz, and the centroid is recomputed, while a
+line with no peak in reach starts its own. Strong lines therefore define the
+peaks, and weak ones cannot drag a peak's centre or stretch it outwards. The
+frequency and wavelength in the row are that centroid.
 
-- **Span (GHz)** in the table is the group's full extent. It is highlighted
-  when it exceeds the Doppler width, i.e. when the members have not actually
-  merged into one peak. The Doppler width for the current temperature is
-  printed above the table next to the grouping threshold.
-- **The shaded band** on the spectra plot covers the selected group's extent,
-  against the peak it is named for.
+This replaced single linkage, where a line joined if it was within 2 GHz of
+the *previous* member, so groups could chain out to any width. At 5 T an A₅→B₁₂
+line with 0.01% of the peak's intensity was chained onto the strong σ⁻ peak
+from 2.5 GHz off its centre, reporting a 3.2 GHz span for four lines that
+really span 1.27 GHz. Under the centroid rule it is a peak of its own. Across
+a scan of 0.05–7 T and 77–1000 K, no member ends further than 2.0 GHz from its
+peak's final centroid.
+
+The threshold stays fixed rather than growing with pressure. Pressure
+broadening does blend lines, but it acts through the Lorentzian wings of
+*strong* lines, often far off: pumping the strong σ⁻ peak at 5 T and
+100 mbar empties A₅ at ~0.5% of the pumped rate, and 98% of that comes from
+the wing of the A₅→B₁₃ probe line 13.8 GHz away. No peak definition would
+capture that, so the hover's per-line intensities are the tool for it.
+
+Three things in the page show what a peak contains:
+
+- **Span (GHz)** in the table is the peak's full extent. It is highlighted
+  when it exceeds the line width, Doppler or Voigt, i.e. when the members have
+  not actually merged. That width is printed above the table.
+- **The shaded band** on the spectra plot covers the selected peak's extent.
 - **Hovering** a transition arrow on the level diagram gives that single line's
-  frequency, wavelength, intensity, its share of the group, and its gap from
-  the previous line — the quantity the grouping actually tested. Hovering a
-  level bar gives its label, m_F and energy on its own manifold's scale.
-
-A worked example: above **B = 4.039 T** an A₅ line joins the strong σ⁻ group.
-It carries about 0.01% of the group's intensity and sits ~1.9 GHz from the
-nearest strong line. The threshold is fixed in frequency while the Doppler
-width scales with temperature, so that 4.039 T figure is identical at 77 K and
-at 600 K — the membership change is an artefact of the grouping, not physics.
+  frequency, wavelength, intensity, its share of the peak, and its offset from
+  the centroid. Hovering a level bar gives its label, m_F and energy on its own
+  manifold's scale.
 
 ## Notes
 
-- Row order in the transitions table is now deterministic. Many groups are
-  exactly equal in intensity by symmetry, and the Streamlit version sorted
-  them with pandas' (unstable) quicksort, so tied rows could come out in a
-  different order on a different machine. `bridge.py` breaks ties explicitly
-  by polarization then frequency.
+- Row order and peak membership are deterministic across machines. Many
+  strengths are exactly equal by symmetry and LAPACK's last-bit noise differs
+  between numpy builds, so the sort keys are rounded and ties broken
+  explicitly; otherwise the browser and a desktop Python could order or group
+  tied lines differently. (The Streamlit version sorted with pandas' unstable
+  quicksort and had the same problem.)
 - The B slider steps in clean 0.01 T increments. The Streamlit slider had
   `min=0.0001, step=0.01`, which put every stop on the grid 0.0001, 0.0101,
   …, so round values like 4 T were unreachable by dragging. The number box
@@ -228,5 +247,6 @@ at 600 K — the membership change is an artefact of the grouping, not physics.
   (Y/Z) labels and the vertical split carry the distinction instead. Setting
   `levelLower` to a neutral (`#848c99` dark, `#6b7280` light) in `app.js`
   removes it if that ever matters.
-- Recalculation costs about 25 ms, so the plots follow the sliders directly
-  rather than through a server round trip.
+- Recalculation costs about 30 ms, with or without pressure broadening, so
+  the plots follow the sliders directly rather than through a server round
+  trip.

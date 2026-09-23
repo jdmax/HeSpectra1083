@@ -440,7 +440,7 @@ function drawLevels() {
         + `<br>${member.frequency} GHz`
         + `<br>${member.wavelength} nm`
         + `<br>intensity ${member.intensity} (${member.share}% of peak)`
-        + (member.gap ? `<br>${member.gap} GHz from the previous line` : '');
+        + `<br>${member.offset} GHz from the peak centroid`;
       for (let s = 0; s < SHAFT_SAMPLES; s++) {
         const t = 0.12 + (0.76 * s) / (SHAFT_SAMPLES - 1);
         hoverTargets.x.push(from.mf + (to.mf - from.mf) * t);
@@ -507,8 +507,8 @@ function drawTable() {
       + ` = Voigt ${state.data.voigt} GHz FWHM`
     : `Doppler width ${state.data.doppler} GHz FWHM`;
   document.getElementById('grouping-note').textContent =
-    ` Grouped when successive lines are within ${state.data.group_threshold} GHz`
-    + ` of each other; ${widths}.`;
+    ` Lines are grouped into a peak when within ${state.data.group_threshold} GHz`
+    + ` of its intensity-weighted centroid; ${widths}.`;
 
   state.data.table.forEach((row, index) => {
     const tr = document.createElement('tr');

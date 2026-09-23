@@ -2,19 +2,21 @@
 """
 Browser bridge for the static build of the helium spectra calculator.
 
-Runs inside Pyodide. Imports helium_spectra_calc unchanged and returns plain
+Runs inside Pyodide. Imports helium_spectra_calc and returns plain
 JSON-able structures; Plotly.js does all the drawing on the JavaScript side.
-The presentation logic below is a direct port of helium_spectra_ui.py with
-Streamlit, pandas and plotly stripped out, so the numbers are unchanged.
+The presentation logic began as a port of the Streamlit app
+(helium_spectra_ui.py), and has since departed from it: peaks are grouped
+around intensity-weighted centroids rather than by single linkage.
 """
 
 import numpy as np
 from helium_spectra_calc import HeliumSpectraCalculator
 
-# c expressed so that (nm) = C_NM_GHZ / (GHz), matching helium_spectra_ui.py
+# c expressed so that (nm) = C_NM_GHZ / (GHz)
 C_NM_GHZ = 299792458.0
 
-# Single-linkage chaining width used by group_transitions()
+# A line joins a peak when it lies within this many GHz of the peak's
+# intensity-weighted centroid (see group_transitions)
 GROUP_THRESHOLD = 2.0
 
 # Collisional broadening lives in helium_spectra_calc, which follows
@@ -38,45 +40,52 @@ def _get_calculator():
 
 
 def group_transitions(energies, forces, ind_lower, ind_upper, threshold=GROUP_THRESHOLD):
-    """Group transitions that are within threshold GHz of each other"""
-    if len(energies) == 0:
+    """Group transitions into peaks around intensity-weighted centroids.
+
+    Lines are taken strongest first. Each joins the nearest existing peak
+    whose centroid lies within `threshold` GHz, and that centroid is then
+    recomputed; a line with no peak in reach starts its own. Strong lines
+    therefore define the peaks, and weak ones attach to whichever is nearest
+    without dragging its centre far.
+
+    This replaces single linkage, which admitted any line within the
+    threshold of the previous member, so a group could chain out to any
+    width: at 5 T an A5 line of 0.01% relative strength joined the strong
+    sigma- peak from 2.5 GHz off its centre.
+    """
+    energies = np.asarray(energies, dtype=float)
+    forces = np.asarray(forces, dtype=float)
+    if energies.size == 0:
         return []
 
-    # Sort by energy
-    sorted_indices = np.argsort(energies)
-    sorted_energies = energies[sorted_indices]
-    sorted_forces = forces[sorted_indices]
-    sorted_ind_lower = ind_lower[sorted_indices]
-    sorted_ind_upper = ind_upper[sorted_indices]
+    # Strongest first, ties broken by frequency. Many strengths are exactly
+    # equal by symmetry and LAPACK's last-bit noise differs between numpy
+    # builds, so both keys are rounded; otherwise tied lines could be taken in
+    # a different order, and grouped differently, in the browser than here.
+    order = np.lexsort((np.round(energies, 6), -np.round(forces, 9)))
+    peaks = []           # [member indices, sum of S, sum of S*nu]
+    for i in order:
+        best, best_distance = None, None
+        for peak in peaks:
+            distance = abs(energies[i] - peak[2] / peak[1])
+            if distance <= threshold and (best is None or distance < best_distance):
+                best, best_distance = peak, distance
+        if best is None:
+            peaks.append([[i], forces[i], forces[i] * energies[i]])
+        else:
+            best[0].append(i)
+            best[1] += forces[i]
+            best[2] += forces[i] * energies[i]
 
     groups = []
-    current_group = {
-        'energies': [sorted_energies[0]],
-        'forces': [sorted_forces[0]],
-        'ind_lower': [sorted_ind_lower[0]],
-        'ind_upper': [sorted_ind_upper[0]]
-    }
-
-    for i in range(1, len(sorted_energies)):
-        if sorted_energies[i] - current_group['energies'][-1] <= threshold:
-            # Add to current group
-            current_group['energies'].append(sorted_energies[i])
-            current_group['forces'].append(sorted_forces[i])
-            current_group['ind_lower'].append(sorted_ind_lower[i])
-            current_group['ind_upper'].append(sorted_ind_upper[i])
-        else:
-            # Start new group
-            groups.append(current_group)
-            current_group = {
-                'energies': [sorted_energies[i]],
-                'forces': [sorted_forces[i]],
-                'ind_lower': [sorted_ind_lower[i]],
-                'ind_upper': [sorted_ind_upper[i]]
-            }
-
-    # Don't forget the last group
-    groups.append(current_group)
-
+    for members, _, _ in sorted(peaks, key=lambda pk: pk[2] / pk[1]):
+        idx = np.array(sorted(members, key=lambda k: energies[k]))
+        groups.append({
+            'energies': list(energies[idx]),
+            'forces': list(forces[idx]),
+            'ind_lower': list(np.asarray(ind_lower)[idx]),
+            'ind_upper': list(np.asarray(ind_upper)[idx]),
+        })
     return groups
 
 
@@ -116,18 +125,15 @@ def build_transitions_table(transitions, isotope, c1_ghz):
         )
 
         for group in groups:
-            # Calculate average values
-            avg_energy = float(np.mean(group['energies']))
+            # The intensity-weighted centroid, which is what the grouping
+            # measures distance from and so what the row reports. A plain mean
+            # would let a line of negligible strength pull the peak's position.
             total_intensity = float(np.sum(group['forces']))
+            centroid = float(np.sum(np.asarray(group['energies']) *
+                                    np.asarray(group['forces'])) / total_intensity)
 
-            # Calculate average absolute frequency from the average relative frequency
-            avg_abs_freq = c1_ghz + avg_energy
-
-            # Calculate average wavelength from the average absolute frequency
-            if avg_abs_freq != 0:
-                avg_wavelength = C_NM_GHZ / avg_abs_freq
-            else:
-                avg_wavelength = 0.0
+            centroid_abs = c1_ghz + centroid
+            centroid_wavelength = C_NM_GHZ / centroid_abs if centroid_abs else 0.0
 
             # Format transition names
             transition_names = []
@@ -136,14 +142,10 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                     group['ind_lower'][i], group['ind_upper'][i], isotope))
 
             # Per-transition detail, in frequency order, for the level diagram
-            # hover. group_transitions() uses single-linkage chaining: each
-            # member is within the threshold of the PREVIOUS one, not of the
-            # group's centre, so a group can span far more than the threshold.
-            # 'gap' is what the grouping actually tested, and 'share' shows how
-            # little a chained-on outlier can contribute.
+            # hover. 'offset' is each line's distance from the centroid, the
+            # quantity the grouping tests, and 'share' its part of the peak.
             order = np.argsort(group['energies'])
             members = []
-            previous = None
             for i in order:
                 energy = float(group['energies'][i])
                 force = float(group['forces'][i])
@@ -158,9 +160,12 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                     'intensity': f"{force:.4f}",
                     'share': f"{100.0 * force / total_intensity:.1f}"
                              if total_intensity else "0.0",
-                    'gap': "" if previous is None else f"{energy - previous:.3f}",
+                    # Rounded first, and +0.0 turns -0.0 into 0.0: a lone
+                    # line sits ~1e-14 from its own centroid, which would
+                    # otherwise print '-0.000' or '+0.000' depending on the
+                    # numpy build's last-bit rounding.
+                    'offset': f"{round(energy - centroid, 3) + 0.0:+.3f}",
                 })
-                previous = energy
 
             energies = np.asarray(group['energies'], dtype=float)
             span_min, span_max = float(energies.min()), float(energies.max())
@@ -172,27 +177,27 @@ def build_transitions_table(transitions, isotope, c1_ghz):
                 # key is rounded and carries explicit tiebreakers: without them
                 # tied rows come out in a different order on different machines.
                 '_sort': (-round(total_intensity, 12), pol_index,
-                          round(avg_energy, 9)),
+                          round(centroid, 9)),
                 # app.js maps this symbol to the series colour, so the palette
                 # is defined in one place.
                 'polarization': pol_name,
-                # Formatted here so the table, the selection marker and the
-                # original Streamlit app all show identical values.
-                'frequency': f"{avg_energy:.3f}",
-                'wavelength': f"{avg_wavelength:.6f}",
+                # The peak's centroid, formatted here so the table and the
+                # selection marker show identical values
+                'frequency': f"{centroid:.3f}",
+                'wavelength': f"{centroid_wavelength:.6f}",
                 'transitions': ', '.join(transition_names),
                 'intensity': f"{total_intensity:.4f}",
                 'lower': [int(v) for v in group['ind_lower']],
                 'upper': [int(v) for v in group['ind_upper']],
-                # How wide the group actually is, which the averaged frequency
-                # above does not reveal
+                # How wide the group actually is, which the centroid above
+                # does not reveal
                 'span': f"{span_max - span_min:.3f}",
                 'span_min': span_min,
                 'span_max': span_max,
                 'members': members,
             })
 
-    # Sort by intensity (descending), as the Streamlit DataFrame did
+    # Strongest peaks first
     rows.sort(key=lambda r: r['_sort'])
     for row in rows:
         del row['_sort']

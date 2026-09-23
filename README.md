@@ -9,8 +9,8 @@ All three share the calculation in `helium_spectra_calc.py`.
 | | |
 | --- | --- |
 | `helium_spectra.py` | Command line; writes spectra and level files |
-| `helium_spectra_ui.py` | Streamlit app: `streamlit run helium_spectra_ui.py` |
-| [`web/`](web/) | The same interface as a static page, needing no server |
+| [`web/`](web/) | Interactive page, needing no server; the main interface |
+| `helium_spectra_ui.py` | Streamlit app, **deprecated**: no pressure broadening, and older peak grouping |
 
 The static build runs `helium_spectra_calc.py` in the browser under Pyodide,
 so it can be served from any plain file host — see [web/README.md](web/README.md).

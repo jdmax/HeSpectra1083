@@ -134,8 +134,8 @@
         </ul>
         <p><strong>Transitions Table:</strong></p>
         <ul>
-          <li>Groups lines within 2 GHz of the <em>previous</em> one, so a
-              group can chain out much wider than that</li>
+          <li>Groups lines within 2 GHz of a peak's intensity-weighted
+              centroid; the frequency and wavelength shown are that centroid</li>
           <li>Span shows each group's true extent, flagged when it exceeds
               the line width</li>
           <li>Hover a transition arrow for its own frequency, intensity and
@@ -163,8 +163,8 @@
             <thead>
               <tr>
                 <th class="col-pol">Polarization</th>
-                <th>Avg Rel Freq (GHz)</th>
-                <th>Avg &lambda; (nm)</th>
+                <th title="Intensity-weighted centroid of the peak">Centroid (GHz)</th>
+                <th title="Wavelength of the intensity-weighted centroid">Centroid &lambda; (nm)</th>
                 <th title="Frequency extent from the lowest to the highest transition in the group">Span (GHz)</th>
                 <th>Transitions</th>
                 <th>Intensity</th>
