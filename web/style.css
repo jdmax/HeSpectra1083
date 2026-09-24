@@ -135,6 +135,12 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
   height: auto;
   margin: 0 auto 20px;
 }
+.boot-card .brand { margin-bottom: 28px; }
+.details-body .brand { margin: 16px auto 4px; }
+
+/* The icon is the full-size original from branding/, scaled down by the browser. */
+.title { display: flex; align-items: center; gap: 12px; }
+.title-icon { flex: none; width: auto; height: 36px; }
 
 /* ---------- theme toggle ---------- */
 

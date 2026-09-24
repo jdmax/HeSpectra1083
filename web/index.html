@@ -23,6 +23,8 @@
 
 <div id="boot">
   <div class="boot-card">
+    <img class="brand" src="assets/logo.png" width="160" height="158"
+         alt="CLAS12 Polarized &sup3;He">
     <div class="spinner" aria-hidden="true"></div>
     <p id="boot-msg">Loading Python runtime…</p>
     <p class="boot-note">First visit downloads the runtime (~10&nbsp;MB) and caches it.
@@ -32,9 +34,6 @@
 
 <div id="app" hidden>
   <aside class="sidebar">
-    <img class="brand" src="assets/logo.png" width="160" height="158"
-         alt="CLAS12 Polarized &sup3;He">
-
     <button type="button" id="theme-toggle" class="theme-toggle">
       <span class="theme-icon" aria-hidden="true"></span>
       <span id="theme-label">Dark theme</span>
@@ -155,12 +154,17 @@
           <li>Rates are per atom: level populations (spin temperature) are not
               included</li>
         </ul>
+        <img class="brand" src="assets/logo.png" width="160" height="158"
+             alt="CLAS12 Polarized &sup3;He">
       </div>
     </details>
   </aside>
 
   <main class="content">
-    <h1>Helium 1083 nm Line Calculator</h1>
+    <h1 class="title">
+      <img class="title-icon" src="assets/icon.png" width="59" height="36" alt="">
+      Helium 1083 nm Line Calculator
+    </h1>
 
     <div id="spectra-plot" class="plot"></div>
 
