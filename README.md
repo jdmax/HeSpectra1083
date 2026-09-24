@@ -16,6 +16,13 @@ The static build runs `helium_spectra_calc.py` in the browser under Pyodide,
 so it can be served from any plain file host — see [web/README.md](web/README.md).
 It is published at **<https://jdmax.github.io/HeSpectra1083/>**.
 
+## Branding
+
+[`branding/`](branding/) holds the full-size CLAS12 Polarized ³He lab icon
+(`icon.png`) and logo (`logo.png`), both with transparent backgrounds, for use
+across the group's apps. The web page uses web-sized copies from `web/assets/`:
+the icon as its favicon and the logo at the top of the sidebar.
+
 ## Line shape
 
 `helium_spectra_calc.py` builds each line as a Voigt profile, following

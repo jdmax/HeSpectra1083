@@ -18,6 +18,7 @@ example.
 | `style.css` | Layout |
 | `app.js` | Widgets, Plotly.js figures, transitions table |
 | `bridge.py` | Runs in Pyodide; wraps `helium_spectra_calc.py` and returns plain data |
+| `assets/` | Lab logo and icons, web-sized from the originals in [`branding/`](../branding/) |
 | `deploy.sh` | Copies the above plus `helium_spectra_calc.py` into a target directory |
 
 `bridge.py` holds the presentation logic: grouping lines into peaks and
@@ -57,7 +58,7 @@ Source: GitHub Actions**. The site is then served at
 ./deploy.sh ~/public_html/hespectra
 ```
 
-That copies `index.html`, `style.css`, `app.js`, `bridge.py` and
+That copies `index.html`, `style.css`, `app.js`, `bridge.py`, `assets/` and
 `helium_spectra_calc.py` into one self-contained directory. No build step, no
 Python process on the server, nothing to keep running. The page uses only
 relative paths, so it works at a domain root or under a subdirectory.

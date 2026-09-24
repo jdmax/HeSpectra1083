@@ -18,12 +18,16 @@ for f in index.html style.css app.js bridge.py; do
     cp "$here/$f" "$target/$f"
 done
 
+# Logo and icons (the full-size originals live in branding/ at the repo root)
+mkdir -p "$target/assets"
+cp "$here"/assets/* "$target/assets/"
+
 # The physics module lives in the repository root and is copied in unchanged,
 # so the deployed directory is self-contained.
 cp "$repo/helium_spectra_calc.py" "$target/helium_spectra_calc.py"
 
-chmod a+rx "$target"
-chmod a+r "$target"/*
+chmod a+rx "$target" "$target/assets"
+chmod a+r "$target"/* "$target"/assets/*
 
 echo "Deployed to $target:"
 ls -1 "$target"

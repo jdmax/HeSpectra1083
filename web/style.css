@@ -125,6 +125,17 @@ h2 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
 h2:first-child { margin-top: 0; }
 h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
 
+/* ---------- lab branding ---------- */
+
+/* The logo's own blue holds at least 4:1 against both themes' backgrounds,
+   and its background is transparent, so one image serves light and dark. */
+.brand {
+  display: block;
+  width: 160px;
+  height: auto;
+  margin: 0 auto 20px;
+}
+
 /* ---------- theme toggle ---------- */
 
 .theme-toggle {
