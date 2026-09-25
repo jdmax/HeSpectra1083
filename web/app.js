@@ -405,8 +405,7 @@ function pumpHoverText(pump, polarization) {
     for (const v of rate.via) {
       text += `<br>${v.share}% via ${v.name} (${v.offset} GHz from laser)`;
     }
-    return text + `<br><i>100% = a full-strength line on resonance with a`
-      + ` ${pump.laser_fwhm} GHz laser on the peak centroid; rates per atom</i>`;
+    return text + `<br><i>100% = a full-strength line</i>`;
   });
 }
 
