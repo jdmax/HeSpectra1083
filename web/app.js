@@ -437,7 +437,6 @@ const PUMP_LABEL_FLOOR = 0.001;
 /** Hover lines for each lower level, describing the selected row's pumping. */
 function pumpHoverText(pump, polarization) {
   const what = state.lines ? 'line' : 'peak';
-  const where = state.lines ? 'on this line' : 'on the peak centroid';
   return pump.levels.map(rate => {
     let text = '<br><br>';
     if (rate.targeted) {
@@ -450,8 +449,7 @@ function pumpHoverText(pump, polarization) {
     for (const v of rate.via) {
       text += `<br>${v.share}% via ${v.name} (${v.offset} GHz from laser)`;
     }
-    return text + `<br><i>100% = a full-strength line on resonance with a`
-      + ` ${pump.laser_fwhm} GHz laser ${where}; rates per atom</i>`;
+    return text;
   });
 }
 
