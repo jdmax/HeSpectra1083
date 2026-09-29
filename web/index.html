@@ -143,11 +143,17 @@
               the line width</li>
           <li>Hover a transition arrow for its own frequency, intensity and
               share of the peak</li>
+          <li>Click a column heading to sort by it; click again to reverse</li>
+          <li><em>Show individual lines</em> lists every line on its own.
+              Selecting one puts the laser on that line and also marks the
+              nearby lines it drives at least 10% as fast as the line it
+              drives most</li>
         </ul>
         <p><strong>Pumping readout:</strong></p>
         <ul>
           <li>With a row selected, each 2&sup3;S level shows how fast a 2&nbsp;GHz
-              laser on that peak's centroid empties it; 100% is a full-strength
+              laser on that peak's centroid (or on that line) empties it;
+              100% is a full-strength
               line exactly on resonance</li>
           <li>Other levels are labelled once they reach 0.1%; hover a lower level
               for the breakdown by line</li>
@@ -172,22 +178,18 @@
       <section>
         <h3>Transitions Table</h3>
         <p class="hint">
-          <em>Select a row to highlight a group of transitions, then hover an
-          arrow on the diagram for its exact frequency.</em>
+          <em>Select a row to highlight its transitions, then hover an
+          arrow on the diagram for its exact frequency. Click a heading to sort.</em>
           <span id="grouping-note"></span>
         </p>
+        <label class="table-mode">
+          <input type="checkbox" id="ungroup"> Show individual lines
+        </label>
         <div class="table-wrap">
           <table id="transitions">
-            <thead>
-              <tr>
-                <th class="col-pol">Polarization</th>
-                <th title="Intensity-weighted centroid of the peak">Centroid (GHz)</th>
-                <th title="Wavelength of the intensity-weighted centroid">Centroid &lambda; (nm)</th>
-                <th title="Frequency extent from the lowest to the highest transition in the group">Span (GHz)</th>
-                <th>Transitions</th>
-                <th>Intensity</th>
-              </tr>
-            </thead>
+            <!-- Headings are built by app.js, as they differ between the
+                 grouped and individual-line views -->
+            <thead><tr></tr></thead>
             <tbody></tbody>
           </table>
         </div>

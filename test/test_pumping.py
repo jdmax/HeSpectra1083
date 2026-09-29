@@ -106,6 +106,33 @@ report('an out-of-range row gives None', bridge.pumping(len(table)) is None)
 report('every row has a readout', all(bridge.pumping(i) for i in range(len(table))))
 
 print()
+print('6. The ungrouped table: the laser on a single line')
+result = bridge.compute(0.1, 300.0, 'He3', 'Frequency Offset', 0.0)
+lines = result['lines']
+n_lines = sum(len(result['table'][i]['members']) for i in range(len(result['table'])))
+report('one row per line, the same lines as the peaks hold', len(lines) == n_lines,
+       f'{len(lines)} vs {n_lines}')
+report('an out-of-range line gives None', bridge.pumping_line(len(lines)) is None)
+bad = []
+for i, row in enumerate(lines):
+    readout = bridge.pumping_line(i)
+    members = readout['members']
+    mine = [m for m in members if m['index'] == i]
+    if (len(mine) != 1 or mine[0]['offset'] != '+0.000'
+            or any(lines[m['index']]['transitions'] != m['name'] for m in members)
+            or any(lines[m['index']]['polarization'] != row['polarization'] for m in members)
+            or not readout['levels'][row['lower'][0]]['targeted']):
+        bad.append(i)
+report('every line drives itself, on resonance, among lines of its own polarization',
+       not bad, str(bad[:5]))
+# At 0.1 T the strongest sigma- line sits among several others within a
+# Doppler width, which a laser on it cannot help driving too
+strongest = next(i for i, r in enumerate(lines) if r['polarization'] == 'σ-')
+driven = bridge.pumping_line(strongest)['members']
+report(f'the strongest sigma- line at 0.1 T drives {len(driven) - 1} others',
+       len(driven) > 3, str([m['name'] for m in driven]))
+
+print()
 print('=' * 72)
 if failures:
     print(f'{len(failures)} FAILURE(S):')

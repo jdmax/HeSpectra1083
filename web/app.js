@@ -103,10 +103,17 @@ const state = {
   isotope: 'He3',
   xAxis: 'Frequency Offset',
   P: 0,
-  selected: null,   // index into the current table, or null
+  lines: false,     // true: one row per line (data.lines) rather than per peak
+  sort: { key: 'intensity', dir: -1 },   // dir 1 ascending, -1 descending
+  selected: null,   // index into the current table as bridge.py ordered it, or null
   pump: null,       // pumping readout for the selected row, fetched on demand
   data: null,       // last result from bridge.compute_js
 };
+
+/** The rows on show: peaks, or individual lines. */
+function currentTable() {
+  return state.lines ? state.data.lines : state.data.table;
+}
 
 let bridge = null;
 let renderQueued = false;
@@ -201,7 +208,31 @@ function bindControls() {
     });
   }
 
+  const ungroup = document.getElementById('ungroup');
+  ungroup.checked = state.lines;   // a reload can restore the box's old state
+  ungroup.addEventListener('change', event => {
+    // Carry the selection across: a peak becomes its strongest line, and a
+    // line becomes the peak that contains it.
+    const row = state.selected === null ? null : currentTable()[state.selected];
+    const target = state.lines ? state.data.table : state.data.lines;
+    state.lines = event.target.checked;
+    state.selected = null;
+    if (row) {
+      const key = strongestMember(row);
+      const index = target.findIndex(r => r.polarization === row.polarization
+        && r.members.some(m => m.lower === key.lower && m.upper === key.upper));
+      if (index >= 0) state.selected = index;
+    }
+    fetchPumping();
+    drawTable();
+    rerender();
+  });
+
   bindTheme();
+}
+
+function strongestMember(row) {
+  return row.members.reduce((a, b) => (Number(b.intensity) > Number(a.intensity) ? b : a));
 }
 
 /* ----------------------------------------------------------------- theme */
@@ -282,7 +313,7 @@ function recompute() {
     renderQueued = false;
     state.data = bridge.compute_js(
       state.B, state.T, state.isotope, state.xAxis, state.P);
-    if (state.selected !== null && state.selected >= state.data.table.length) {
+    if (state.selected !== null && state.selected >= currentTable().length) {
       state.selected = null;
     }
     fetchPumping();
@@ -304,11 +335,23 @@ function rerender() {
  * rather than for every row of every recompute, as only this one is shown.
  */
 function fetchPumping() {
-  state.pump = state.selected === null ? null : bridge.pumping_js(state.selected) || null;
+  if (state.selected === null) {
+    state.pump = null;
+  } else {
+    const fetch = state.lines ? bridge.pumping_line_js : bridge.pumping_js;
+    state.pump = fetch(state.selected) || null;
+  }
 }
 
+/**
+ * The selected row. For a single line its members are the lines the laser on
+ * it drives, from the pumping readout, so the marker band, the arrows and the
+ * table all show what that laser would pump, not just the line itself.
+ */
 function selectedRow() {
-  return state.selected === null ? null : state.data.table[state.selected];
+  if (state.selected === null) return null;
+  const row = currentTable()[state.selected];
+  return state.lines && state.pump ? { ...row, members: state.pump.members } : row;
 }
 
 /** m_F as a signed integer or half-integer, matching the axis tick labels. */
@@ -391,12 +434,14 @@ function drawSpectra() {
 // though they still appear in the level's hover
 const PUMP_LABEL_FLOOR = 0.001;
 
-/** Hover lines for each lower level, describing the selected peak's pumping. */
+/** Hover lines for each lower level, describing the selected row's pumping. */
 function pumpHoverText(pump, polarization) {
+  const what = state.lines ? 'line' : 'peak';
+  const where = state.lines ? 'on this line' : 'on the peak centroid';
   return pump.levels.map(rate => {
     let text = '<br><br>';
     if (rate.targeted) {
-      text += `<b>Pumped by this peak</b>, at ${rate.text}`;
+      text += `<b>Pumped by this ${what}</b>, at ${rate.text}`;
     } else if (!rate.has_lines) {
       text += `No ${polarization} lines from this level`;
     } else {
@@ -406,7 +451,7 @@ function pumpHoverText(pump, polarization) {
       text += `<br>${v.share}% via ${v.name} (${v.offset} GHz from laser)`;
     }
     return text + `<br><i>100% = a full-strength line on resonance with a`
-      + ` ${pump.laser_fwhm} GHz laser on the peak centroid; rates per atom</i>`;
+      + ` ${pump.laser_fwhm} GHz laser ${where}; rates per atom</i>`;
   });
 }
 
@@ -477,25 +522,31 @@ function drawLevels() {
 
   // Arrows for the selected group of transitions. Driven from `members`, which
   // is ordered by frequency and carries each transition's own numbers, so the
-  // arrow and its hover text cannot get out of step.
+  // arrow and its hover text cannot get out of step. For a single line, the
+  // other lines its laser drives are drawn fainter than the line itself.
   const row = selectedRow();
   if (row) {
     for (const member of row.members) {
       const from = lv.S[member.lower];
       const to = lv.P[member.upper];
       if (!from || !to) continue;
+      const secondary = state.lines && member.index !== state.selected;
       annotations.push({
         x: to.mf, y: to.e, ax: from.mf, ay: from.e,
         xref: 'x', yref: 'y', axref: 'x', ayref: 'y',
         showarrow: true, arrowhead: 2, arrowsize: 1,
-        arrowwidth: 1.5, arrowcolor: colorForPol(row.polarization),
+        arrowwidth: secondary ? 1 : 1.5, opacity: secondary ? 0.55 : 1,
+        arrowcolor: colorForPol(row.polarization),
       });
 
       const text = `<b>${member.name}</b>`
         + `<br>${member.frequency} GHz`
         + `<br>${member.wavelength} nm`
-        + `<br>intensity ${member.intensity} (${member.share}% of peak)`
-        + `<br>${member.offset} GHz from the peak centroid`;
+        + (state.lines
+          ? `<br>intensity ${member.intensity} (${member.share}% of what this laser drives)`
+            + `<br>${member.offset} GHz from the laser`
+          : `<br>intensity ${member.intensity} (${member.share}% of peak)`
+            + `<br>${member.offset} GHz from the peak centroid`);
       for (let s = 0; s < SHAFT_SAMPLES; s++) {
         const t = 0.12 + (0.76 * s) / (SHAFT_SAMPLES - 1);
         hoverTargets.x.push(from.mf + (to.mf - from.mf) * t);
@@ -561,30 +612,35 @@ function drawTable() {
     ? `Doppler ${state.data.doppler} + collisional ${state.data.lorentz}`
       + ` = Voigt ${state.data.voigt} GHz FWHM`
     : `Doppler width ${state.data.doppler} GHz FWHM`;
-  document.getElementById('grouping-note').textContent =
-    ` Lines are grouped into a peak when within ${state.data.group_threshold} GHz`
-    + ` of its intensity-weighted centroid; ${widths}.`;
+  document.getElementById('grouping-note').textContent = state.lines
+    ? ` Each line is listed on its own. Selecting one puts a`
+      + ` ${state.data.laser_fwhm} GHz laser on it and also marks the lines it`
+      + ` drives at least ${state.data.target_fraction}% as fast as the line it`
+      + ` drives most; ${widths}.`
+    : ` Lines are grouped into a peak when within ${state.data.group_threshold} GHz`
+      + ` of its intensity-weighted centroid; ${widths}.`;
 
-  state.data.table.forEach((row, index) => {
+  const columns = tableColumns();
+  drawTableHeader(columns);
+
+  const table = currentTable();
+  for (const index of sortedIndices(table, columns)) {
+    const row = table[index];
     const tr = document.createElement('tr');
     tr.dataset.index = String(index);
 
-    const cells = [
-      [row.polarization, 'pol'],
-      [row.frequency, ''],
-      [row.wavelength, ''],
-      // Flagged when the group reaches wider than the line width, i.e. when
-      // its members do not actually merge into a single peak. Pressure widens
-      // the lines, so a group flagged at low pressure can stop being flagged.
-      [row.span, Number(row.span) > Number(state.data.voigt) ? 'span wide' : 'span'],
-      [row.transitions, ''],
-      [row.intensity, ''],
-    ];
-    for (const [text, cls] of cells) {
+    for (const column of columns) {
       const td = document.createElement('td');
-      td.textContent = text;
-      if (cls) td.className = cls;
-      if (cls === 'pol') td.style.color = colorForPol(row.polarization);
+      td.textContent = row[column.key];
+      if (column.key === 'polarization') {
+        td.className = 'pol';
+        td.style.color = colorForPol(row.polarization);
+      } else if (column.key === 'span') {
+        // Flagged when the group reaches wider than the line width, i.e. when
+        // its members do not actually merge into a single peak. Pressure
+        // widens the lines, so a group flagged at low pressure can stop being.
+        td.className = Number(row.span) > Number(state.data.voigt) ? 'span wide' : 'span';
+      }
       tr.appendChild(td);
     }
 
@@ -595,19 +651,128 @@ function drawTable() {
     });
 
     tbody.appendChild(tr);
-  });
+  }
 
   markSelectedRow();
 }
 
+const POL_ORDER = ['σ+', 'σ-', 'π'];
+
+/** Transitions in index order: A₁→B₁, A₁→B₂, …, then a group's later members. */
+function compareTransitions(a, b) {
+  const n = Math.min(a.lower.length, b.lower.length);
+  for (let i = 0; i < n; i++) {
+    const d = (a.lower[i] - b.lower[i]) || (a.upper[i] - b.upper[i]);
+    if (d) return d;
+  }
+  return a.lower.length - b.lower.length;
+}
+
+/**
+ * The table's columns for the view showing. `compare` orders two rows
+ * ascending; `first` is the direction a first click sorts in, largest first
+ * for the quantities one looks for the biggest of.
+ */
+function tableColumns() {
+  const byNumber = key => (a, b) => Number(a[key]) - Number(b[key]);
+  const columns = [
+    { key: 'polarization', label: 'Polarization', cls: 'col-pol', first: 1,
+      compare: (a, b) => POL_ORDER.indexOf(a.polarization) - POL_ORDER.indexOf(b.polarization) },
+    state.lines
+      ? { key: 'frequency', label: 'Frequency (GHz)', first: 1,
+          compare: byNumber('frequency') }
+      : { key: 'frequency', label: 'Centroid (GHz)', first: 1,
+          title: 'Intensity-weighted centroid of the peak',
+          compare: byNumber('frequency') },
+    state.lines
+      ? { key: 'wavelength', label: 'λ (nm)', first: 1,
+          compare: byNumber('wavelength') }
+      : { key: 'wavelength', label: 'Centroid λ (nm)', first: 1,
+          title: 'Wavelength of the intensity-weighted centroid',
+          compare: byNumber('wavelength') },
+  ];
+  if (!state.lines) {
+    columns.push({ key: 'span', label: 'Span (GHz)', first: -1,
+      title: 'Frequency extent from the lowest to the highest transition in the group',
+      compare: byNumber('span') });
+  }
+  columns.push(
+    { key: 'transitions', label: state.lines ? 'Transition' : 'Transitions', first: 1,
+      compare: compareTransitions },
+    { key: 'intensity', label: 'Intensity', first: -1, compare: byNumber('intensity') },
+  );
+  return columns;
+}
+
+/**
+ * Row indices in display order. Array.prototype.sort is stable, so ties keep
+ * bridge.py's order: strongest first, with its own deterministic tiebreakers.
+ */
+function sortedIndices(table, columns) {
+  let column = columns.find(c => c.key === state.sort.key);
+  if (!column) {
+    // Span exists only for peaks; the line view falls back to intensity
+    state.sort = { key: 'intensity', dir: -1 };
+    column = columns.find(c => c.key === 'intensity');
+  }
+  const dir = state.sort.dir;
+  return table.map((_, i) => i)
+    .sort((i, j) => dir * column.compare(table[i], table[j]));
+}
+
+function drawTableHeader(columns) {
+  const tr = document.querySelector('#transitions thead tr');
+  tr.replaceChildren();
+  for (const column of columns) {
+    const th = document.createElement('th');
+    if (column.cls) th.className = column.cls;
+    if (column.title) th.title = column.title;
+
+    const active = state.sort.key === column.key;
+    if (active) th.setAttribute('aria-sort', state.sort.dir > 0 ? 'ascending' : 'descending');
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = column.label;
+    const mark = document.createElement('span');
+    mark.className = 'sort-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = active ? (state.sort.dir > 0 ? '▲' : '▼') : '';
+    button.appendChild(mark);
+
+    button.addEventListener('click', () => {
+      state.sort = active
+        ? { key: column.key, dir: -state.sort.dir }
+        : { key: column.key, dir: column.first };
+      drawTable();
+      document.querySelector(`#transitions thead th:nth-child(${columns.indexOf(column) + 1}) button`)
+        .focus();
+      // Keep the selection in sight after it moves
+      const selected = document.querySelector('#transitions tbody tr.selected');
+      if (selected) selected.scrollIntoView({ block: 'nearest' });
+    });
+
+    th.appendChild(button);
+    tr.appendChild(th);
+  }
+}
+
 function markSelectedRow() {
+  const row = selectedRow();
+  // In the line view, the other lines the laser on the selected one drives
+  const driven = new Set(state.lines && state.pump
+    ? state.pump.members.map(m => m.index).filter(i => i !== state.selected)
+    : []);
   for (const tr of document.querySelectorAll('#transitions tbody tr')) {
-    const on = Number(tr.dataset.index) === state.selected;
+    const index = Number(tr.dataset.index);
+    const on = index === state.selected;
+    const alsoDriven = driven.has(index);
     tr.classList.toggle('selected', on);
+    tr.classList.toggle('driven', alsoDriven);
     // Marked in the row's own polarization colour, matching the arrows the
     // selection draws on the level diagram
-    tr.style.boxShadow = on
-      ? `inset 3px 0 0 ${colorForPol(state.data.table[state.selected].polarization)}`
+    tr.style.boxShadow = on || alsoDriven
+      ? `inset 3px 0 0 ${colorForPol(row.polarization)}`
       : '';
   }
 }

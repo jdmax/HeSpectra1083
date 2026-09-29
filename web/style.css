@@ -268,6 +268,33 @@ tbody tr:hover { background: var(--row-hover); }
 /* The selected row is marked in its own polarization colour, set inline by
    app.js, so the table and the level-diagram arrows agree. */
 tbody tr.selected { background: var(--sel-bg); }
+/* In the individual-line view, the other lines the laser on the selected one
+   also drives: the same polarization bar, on a fainter background. */
+tbody tr.driven { background: color-mix(in srgb, var(--sel-bg) 45%, transparent); }
+
+/* Headings are buttons, so sorting works from the keyboard too */
+thead th button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+thead th button:hover { color: var(--accent); }
+thead th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sort-mark { font-size: 10px; color: var(--muted); min-width: 8px; }
+thead th[aria-sort] .sort-mark { color: var(--accent); }
+
+.table-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin: 0 0 8px;
+  cursor: pointer;
+}
+.table-mode input { accent-color: var(--accent); margin: 0; }
+.table-mode input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .col-pol { width: 1%; }
 td.pol { font-weight: 600; }

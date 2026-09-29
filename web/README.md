@@ -207,6 +207,16 @@ Three things in the page show what a peak contains:
   the centroid. Hovering a level bar gives its label, m_F and energy on its own
   manifold's scale.
 
+Clicking a column heading sorts the table by it (click again to reverse);
+ties keep the bridge's strongest-first order. **Show individual lines**
+switches to `build_lines_table()`, one row per line with no grouping. Selecting
+a line there asks `pumping_line()` for the readout with the 2 GHz laser on
+that line's own frequency, and it lists the lines that laser drives at least
+10% (`PUMP_TARGET_FRACTION`) as fast as the line it drives most. Those rows,
+their arrows (drawn fainter than the selected line's) and the shaded band show
+what a laser tuned to that line would actually pump. Switching views keeps the
+selection: a peak becomes its strongest line, and a line becomes its peak.
+
 ## Pumping readout
 
 Selecting a row puts a laser on that peak's centroid and shows, under each
