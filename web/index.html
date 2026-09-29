@@ -151,12 +151,18 @@
         </ul>
         <p><strong>Pumping readout:</strong></p>
         <ul>
-          <li>With a row selected, each 2&sup3;S level shows how fast a 2&nbsp;GHz
-              laser on that peak's centroid (or on that line) empties it;
-              100% is a full-strength
-              line exactly on resonance</li>
-          <li>Other levels are labelled once they reach 0.1%; hover a lower level
-              for the breakdown by line</li>
+          <li>With a row selected, the percentage under each 2&sup3;S level is a
+              pumping rate, not a transition strength: how fast a 2&nbsp;GHz
+              laser empties that level</li>
+          <li>The laser sits on the peak's centroid, or in the individual-line
+              view on the selected line itself, so choosing a different line
+              from the same group moves the laser and changes every rate</li>
+          <li>Each level's rate sums its lines of that polarization, each
+              weighted by its strength and by how far it is from the laser</li>
+          <li>100% is what a full-strength line exactly on resonance would give.
+              A level with several lines under the laser can exceed it</li>
+          <li>Levels the selection pumps are always labelled, others once they
+              reach 0.1%; hover a lower level for the breakdown by line</li>
           <li>Rates are per atom: level populations (spin temperature) are not
               included</li>
         </ul>
