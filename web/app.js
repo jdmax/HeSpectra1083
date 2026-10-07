@@ -102,6 +102,7 @@ const state = {
   T: 300,
   isotope: 'He3',
   xAxis: 'Frequency Offset',
+  yScale: 'linear', // or 'log', for the spectra plot
   P: 0,
   M: 0,             // He3 nuclear polarization, -1 < M < 1
   lines: false,     // true: one row per line (data.lines) rather than per peak
@@ -212,6 +213,15 @@ function bindControls() {
         state.sort.key = state.xAxis === 'Frequency Offset' ? 'frequency' : 'wavelength';
       }
       recompute();
+    });
+  }
+
+  for (const radio of document.querySelectorAll('input[name="yscale"]')) {
+    // A reload can restore an old choice in the form; keep it in step with state
+    radio.checked = radio.value === state.yScale;
+    radio.addEventListener('change', () => {
+      state.yScale = radio.value;
+      drawSpectra();   // display only, the numbers are unchanged
     });
   }
 
@@ -374,8 +384,27 @@ function drawSpectra() {
   const s = state.data.spectra;
   const THEME = palette();
 
+  // On a log axis the Gaussian wings fall to ~1e-300 or underflow to 0, so
+  // autorange would span hundreds of decades. The axis instead opens
+  // LOG_DECADES below the tallest peak, and anything under that is clamped
+  // just beneath the floor: a curve then runs off the bottom of the plot
+  // rather than breaking where it hits 0, which a log axis cannot show.
+  const log = state.yScale === 'log';
+  const LOG_DECADES = 6;
+  let yRange = null;
+  let series = key => s[key];
+  if (log) {
+    const peak = Math.max(...SERIES_KEYS.map(key => Math.max(...s[key])));
+    if (peak > 0) {
+      const top = Math.log10(peak);
+      yRange = [top - LOG_DECADES, top + 0.2];
+      const floor = 10 ** (top - LOG_DECADES - 1);
+      series = key => s[key].map(v => Math.max(v, floor));
+    }
+  }
+
   const traces = SERIES_KEYS.map(key => ({
-    x: s.x, y: s[key], mode: 'lines',
+    x: s.x, y: series(key), mode: 'lines',
     name: SERIES_LABELS[key], line: { color: THEME.series[key], width: 2 },
   }));
 
@@ -418,7 +447,11 @@ function drawSpectra() {
   const layout = {
     title: { text: state.data.title },
     xaxis: axis(s.x_label),
-    yaxis: axis('Intensity'),
+    yaxis: {
+      ...axis('Intensity'),
+      type: state.yScale,
+      ...(yRange ? { range: yRange, autorange: false, exponentformat: 'power' } : {}),
+    },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: THEME.text },
@@ -431,7 +464,7 @@ function drawSpectra() {
     },
     shapes,
     // Keep pan/zoom while sweeping B and T; reset when the axes change meaning
-    uirevision: `${state.isotope}|${state.xAxis}`,
+    uirevision: `${state.isotope}|${state.xAxis}|${state.yScale}`,
   };
 
   Plotly.react('spectra-plot', traces, layout, PLOT_CONFIG);

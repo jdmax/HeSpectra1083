@@ -113,6 +113,12 @@
       <label><input type="radio" name="xaxis" value="Wavelength"> Wavelength</label>
     </fieldset>
 
+    <fieldset class="radios">
+      <legend>Y-axis</legend>
+      <label><input type="radio" name="yscale" value="linear" checked> Linear</label>
+      <label><input type="radio" name="yscale" value="log"> Logarithmic</label>
+    </fieldset>
+
     <hr>
 
     <p class="blurb">
@@ -138,6 +144,9 @@
           <li><strong>Pressure</strong>: 0 - 300 mbar (collisional broadening only)</li>
           <li><strong>M</strong>: &minus;0.999 - 0.999, &sup3;He nuclear polarization
               setting the 2&sup3;S populations (spin temperature)</li>
+          <li><strong>Y-axis</strong>: the logarithmic scale opens six decades
+              below the tallest peak, to show the weak lines and the Voigt
+              wings; zoom to see further</li>
           <li><strong>Doppler Width</strong>: &prop; &radic;(T/300), Gaussian</li>
           <li><strong>Collisional Width</strong>: 12.0 (&sup3;He) / 10.4 (&#8308;He)
               MHz/mbar FWHM, Lorentzian</li>
