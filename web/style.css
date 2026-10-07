@@ -107,7 +107,7 @@ body {
   flex: 0 0 320px;
   background: var(--raised);
   border-right: 1px solid var(--border-soft);
-  padding: 24px 20px 40px;
+  padding: 16px 20px 24px;
   position: sticky;
   top: 0;
   max-height: 100vh;
@@ -121,7 +121,7 @@ body {
 }
 
 h1 { font-size: 30px; font-weight: 700; margin: 0 0 18px; }
-h2 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; }
+h2 { font-size: 15px; font-weight: 600; margin: 16px 0 6px; }
 h2:first-child { margin-top: 0; }
 h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
 
@@ -149,8 +149,8 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  margin-bottom: 20px;
-  padding: 7px 10px;
+  margin-bottom: 14px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
@@ -173,18 +173,18 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; }
 
 /* ---------- controls ---------- */
 
-.control-row { display: flex; gap: 12px; align-items: flex-end; }
-.control { flex: 1 1 auto; min-width: 0; }
-.control.narrow { flex: 0 0 96px; }
-
-.control label {
-  display: block;
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 4px;
+/* One control: label and number box on a line, the slider beneath */
+.control { margin-bottom: 10px; }
+.control-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
+.control-head label { font-size: 13px; color: var(--muted); }
+.control-head input[type="number"] { flex: 0 0 84px; padding: 2px 6px; }
 
-input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="range"] { display: block; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
 
 input[type="number"] {
   width: 100%;
@@ -204,20 +204,28 @@ input[type="radio"]:focus-visible {
   outline-offset: 1px;
 }
 
+/* Each group on one line. A floated legend sits in the fieldset's content
+   like any other box, so it can lead the line as a fixed-width label. */
 .radios {
   border: 0;
   padding: 0;
-  margin: 0 0 14px;
+  margin: 0 0 6px;
 }
-.radios legend { font-size: 13px; color: var(--muted); padding: 0 0 4px; }
-.radios label { display: block; cursor: pointer; }
-.radios input { accent-color: var(--accent); margin-right: 6px; }
+.radios legend {
+  float: left;
+  width: 58px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 24px;
+  color: var(--muted);
+}
+.radios label { display: inline-block; margin-right: 12px; font-size: 14px; line-height: 24px; cursor: pointer; }
+.radios label:last-child { margin-right: 0; }
+.radios input { accent-color: var(--accent); margin: 0 5px 0 0; vertical-align: -1px; }
 
-hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 
-.blurb { font-size: 14px; }
-.sub-note { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
-.blurb.caveat { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.blurb { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
 
 details { font-size: 14px; }
 summary { cursor: pointer; font-weight: 600; padding: 4px 0; }

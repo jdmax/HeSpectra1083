@@ -39,99 +39,72 @@
       <span id="theme-label">Dark theme</span>
     </button>
 
-    <h2>Magnetic Field</h2>
-    <div class="control-row">
-      <div class="control">
-        <label for="b-slider">B Field (T)</label>
-        <!-- min is 0 so the 0.01 steps land on round values; app.js clamps
-             the result up to the number box's 0.0001 lower limit. -->
-        <input type="range" id="b-slider" min="0" max="7.0" step="0.01" value="1.0">
-      </div>
-      <div class="control narrow">
-        <label for="b-input">B (T)</label>
+    <h2>Conditions</h2>
+    <!-- Each control is a label and number box on one line, with the slider
+         full-width beneath; app.js keeps the two in step. -->
+    <div class="control">
+      <div class="control-head">
+        <label for="b-input">Magnetic field B (T)</label>
         <input type="number" id="b-input" min="0.0001" max="10.0" step="0.01" value="1.0000">
       </div>
+      <!-- min is 0 so the 0.01 steps land on round values; app.js clamps
+           the result up to the number box's 0.0001 lower limit. -->
+      <input type="range" id="b-slider" min="0" max="7.0" step="0.01" value="1.0"
+             aria-label="Magnetic field B (T)">
     </div>
 
-    <h2>Temperature</h2>
-    <div class="control-row">
-      <div class="control">
-        <label for="t-slider">Temperature (K)</label>
-        <input type="range" id="t-slider" min="77" max="1000" step="1" value="300">
-      </div>
-      <div class="control narrow">
-        <label for="t-input">T (K)</label>
+    <div class="control">
+      <div class="control-head">
+        <label for="t-input">Temperature T (K)</label>
         <input type="number" id="t-input" min="77" max="1000" step="1" value="300">
       </div>
+      <input type="range" id="t-slider" min="77" max="1000" step="1" value="300"
+             aria-label="Temperature T (K)">
     </div>
 
-    <h2>Pressure</h2>
-    <div class="control-row">
-      <div class="control">
-        <label for="p-slider">Pressure (mbar)</label>
-        <input type="range" id="p-slider" min="0" max="300" step="1" value="0">
-      </div>
-      <div class="control narrow">
-        <label for="p-input">P (mbar)</label>
+    <div class="control">
+      <div class="control-head">
+        <label for="p-input">Pressure P (mbar)</label>
         <input type="number" id="p-input" min="0" max="300" step="1" value="0">
       </div>
+      <input type="range" id="p-slider" min="0" max="300" step="1" value="0"
+             aria-label="Pressure P (mbar)">
     </div>
-    <p class="sub-note">
-      Adds collisional broadening &mdash; 12.0&nbsp;MHz/mbar for &sup3;He,
-      10.4 for &#8308;He (Lorentzian FWHM) &mdash; giving a Voigt profile, as in
-      P.J.&nbsp;Nacher's <em>spectreVoigt</em>. 0 leaves the Doppler-only shape.
-    </p>
 
-    <h2>Polarization</h2>
-    <div class="control-row">
-      <div class="control">
-        <label for="m-slider">&sup3;He nuclear polarization M</label>
-        <input type="range" id="m-slider" min="-0.99" max="0.99" step="0.01" value="0">
-      </div>
-      <div class="control narrow">
-        <label for="m-input">M</label>
+    <div class="control">
+      <div class="control-head">
+        <label for="m-input">&sup3;He polarization M</label>
         <input type="number" id="m-input" min="-0.999" max="0.999" step="0.01" value="0.00">
       </div>
+      <input type="range" id="m-slider" min="-0.99" max="0.99" step="0.01" value="0"
+             aria-label="Helium-3 nuclear polarization M">
     </div>
-    <p class="sub-note">
-      Weights each line by the population of its 2&sup3;S level, at the spin
-      temperature set by M: &prop;&nbsp;e<sup>&beta;m<sub>F</sub></sup> with
-      e<sup>&beta;</sup>&nbsp;=&nbsp;(1+M)/(1&minus;M), as in Nacher's
-      <em>spectreVoigt</em>. For &#8308;He this is a mixture with &sup3;He at M.
-    </p>
 
-    <h2>Display Options</h2>
+    <h2>Display</h2>
     <fieldset class="radios">
       <legend>Isotope</legend>
-      <label><input type="radio" name="isotope" value="He3" checked> He3</label>
-      <label><input type="radio" name="isotope" value="He4"> He4</label>
+      <label><input type="radio" name="isotope" value="He3" checked> &sup3;He</label>
+      <label><input type="radio" name="isotope" value="He4"> &#8308;He</label>
     </fieldset>
 
     <fieldset class="radios">
       <legend>X-axis</legend>
-      <label><input type="radio" name="xaxis" value="Frequency Offset" checked> Frequency Offset</label>
+      <label><input type="radio" name="xaxis" value="Frequency Offset" checked> Frequency</label>
       <label><input type="radio" name="xaxis" value="Wavelength"> Wavelength</label>
     </fieldset>
 
     <fieldset class="radios">
       <legend>Y-axis</legend>
       <label><input type="radio" name="yscale" value="linear" checked> Linear</label>
-      <label><input type="radio" name="yscale" value="log"> Logarithmic</label>
+      <label><input type="radio" name="yscale" value="log"> Log</label>
     </fieldset>
 
     <hr>
 
     <p class="blurb">
       Calculate and visualize helium spectra near 1083 nm with Zeeman splitting for
-      &sup3;He and &#8308;He isotopes. Adjust magnetic field, temperature and pressure
-      to see real-time changes in the spectra.
-    </p>
-    <p class="blurb caveat">
-      Line <em>positions and strengths</em> come from a model valid to a few mbar.
-      The pressure control broadens the line <em>shape</em> only: collisional
-      shifts (~1.4&nbsp;MHz/mbar) and any line mixing among the 2&sup3;P sublevels
-      are not included, so above a few mbar the widths are right but the
-      positions are still the low-pressure ones.
+      &sup3;He and &#8308;He isotopes. Adjust the conditions to see real-time
+      changes in the spectra.
     </p>
 
     <details>
@@ -150,6 +123,27 @@
           <li><strong>Doppler Width</strong>: &prop; &radic;(T/300), Gaussian</li>
           <li><strong>Collisional Width</strong>: 12.0 (&sup3;He) / 10.4 (&#8308;He)
               MHz/mbar FWHM, Lorentzian</li>
+        </ul>
+        <p><strong>Pressure:</strong></p>
+        <ul>
+          <li>Adds collisional broadening &mdash; 12.0&nbsp;MHz/mbar for &sup3;He,
+              10.4 for &#8308;He (Lorentzian FWHM) &mdash; giving a Voigt profile,
+              as in P.J.&nbsp;Nacher's <em>spectreVoigt</em>. 0 leaves the
+              Doppler-only shape</li>
+          <li>Line <em>positions and strengths</em> come from a model valid to a
+              few mbar. The pressure control broadens the line <em>shape</em>
+              only: collisional shifts (~1.4&nbsp;MHz/mbar) and any line mixing
+              among the 2&sup3;P sublevels are not included, so above a few mbar
+              the widths are right but the positions are still the low-pressure
+              ones</li>
+        </ul>
+        <p><strong>&sup3;He polarization M:</strong></p>
+        <ul>
+          <li>Weights each line by the population of its 2&sup3;S level, at the
+              spin temperature set by M: &prop;&nbsp;e<sup>&beta;m<sub>F</sub></sup>
+              with e<sup>&beta;</sup>&nbsp;=&nbsp;(1+M)/(1&minus;M), as in Nacher's
+              <em>spectreVoigt</em></li>
+          <li>For &#8308;He this is a mixture with &sup3;He at M</li>
         </ul>
         <p><strong>Polarizations:</strong></p>
         <ul>
