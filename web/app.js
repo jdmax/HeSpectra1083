@@ -103,6 +103,7 @@ const state = {
   isotope: 'He3',
   xAxis: 'Frequency Offset',
   P: 0,
+  M: 0,             // He3 nuclear polarization, -1 < M < 1
   lines: false,     // true: one row per line (data.lines) rather than per peak
   sort: { key: 'intensity', dir: -1 },   // dir 1 ascending, -1 descending
   selected: null,   // index into the current table as bridge.py ordered it, or null
@@ -192,6 +193,7 @@ function bindControls() {
   linkNumeric('b-slider', 'b-input', 'B', v => v.toFixed(4));
   linkNumeric('t-slider', 't-input', 'T', v => String(Math.round(v)));
   linkNumeric('p-slider', 'p-input', 'P', v => String(Math.round(v)));
+  linkNumeric('m-slider', 'm-input', 'M', v => v.toFixed(2));
 
   for (const radio of document.querySelectorAll('input[name="isotope"]')) {
     radio.addEventListener('change', () => {
@@ -204,6 +206,11 @@ function bindControls() {
   for (const radio of document.querySelectorAll('input[name="xaxis"]')) {
     radio.addEventListener('change', () => {
       state.xAxis = radio.value;
+      // The table shows position in the axis's unit, so a sort on position
+      // carries over to the column that replaces it
+      if (state.sort.key === 'frequency' || state.sort.key === 'wavelength') {
+        state.sort.key = state.xAxis === 'Frequency Offset' ? 'frequency' : 'wavelength';
+      }
       recompute();
     });
   }
@@ -312,7 +319,7 @@ function recompute() {
   requestAnimationFrame(() => {
     renderQueued = false;
     state.data = bridge.compute_js(
-      state.B, state.T, state.isotope, state.xAxis, state.P);
+      state.B, state.T, state.isotope, state.xAxis, state.P, state.M);
     if (state.selected !== null && state.selected >= currentTable().length) {
       state.selected = null;
     }
@@ -466,7 +473,9 @@ function drawLevels() {
     const x = [], y = [], text = [];
     levels.forEach((level, i) => {
       const label = `${level.label.trim()}<br>m<sub>F</sub> = ${formatMf(level.mf)}`
-        + `<br>${(level.e - offset).toFixed(3)} GHz` + (extra[i] || '');
+        + `<br>${(level.e - offset).toFixed(3)} GHz`
+        + (level.pop === undefined ? '' : `<br>population ${(100 * level.pop).toFixed(1)}%`)
+        + (extra[i] || '');
       x.push(level.mf - half, level.mf + half, null);
       y.push(level.e, level.e, null);
       text.push(label, label, '');
@@ -544,7 +553,9 @@ function drawLevels() {
           ? `<br>intensity ${member.intensity} (${member.share}% of what this laser drives)`
             + `<br>${member.offset} GHz from the laser`
           : `<br>intensity ${member.intensity} (${member.share}% of peak)`
-            + `<br>${member.offset} GHz from the peak centroid`);
+            + `<br>${member.offset} GHz from the peak centroid`)
+        // Equal to the intensity at M = 0, so only worth a line otherwise
+        + (state.M !== 0 ? `<br>absorption ${member.absorption} at M = ${state.M.toFixed(2)}` : '');
       for (let s = 0; s < SHAFT_SAMPLES; s++) {
         const t = 0.12 + (0.76 * s) / (SHAFT_SAMPLES - 1);
         hoverTargets.x.push(from.mf + (to.mf - from.mf) * t);
@@ -673,21 +684,25 @@ function compareTransitions(a, b) {
  */
 function tableColumns() {
   const byNumber = key => (a, b) => Number(a[key]) - Number(b[key]);
-  const columns = [
-    { key: 'polarization', label: 'Polarization', cls: 'col-pol', first: 1,
-      compare: (a, b) => POL_ORDER.indexOf(a.polarization) - POL_ORDER.indexOf(b.polarization) },
-    state.lines
+  // Position in whichever unit the spectrum's x-axis uses, leaving room for
+  // the absorption column
+  const position = state.xAxis === 'Frequency Offset'
+    ? (state.lines
       ? { key: 'frequency', label: 'Frequency (GHz)', first: 1,
           compare: byNumber('frequency') }
       : { key: 'frequency', label: 'Centroid (GHz)', first: 1,
           title: 'Intensity-weighted centroid of the peak',
-          compare: byNumber('frequency') },
-    state.lines
+          compare: byNumber('frequency') })
+    : (state.lines
       ? { key: 'wavelength', label: 'λ (nm)', first: 1,
           compare: byNumber('wavelength') }
       : { key: 'wavelength', label: 'Centroid λ (nm)', first: 1,
           title: 'Wavelength of the intensity-weighted centroid',
-          compare: byNumber('wavelength') },
+          compare: byNumber('wavelength') });
+  const columns = [
+    { key: 'polarization', label: 'Polarization', cls: 'col-pol', first: 1,
+      compare: (a, b) => POL_ORDER.indexOf(a.polarization) - POL_ORDER.indexOf(b.polarization) },
+    position,
   ];
   if (!state.lines) {
     columns.push({ key: 'span', label: 'Span (GHz)', first: -1,
@@ -697,7 +712,13 @@ function tableColumns() {
   columns.push(
     { key: 'transitions', label: state.lines ? 'Transition' : 'Transitions', first: 1,
       compare: compareTransitions },
-    { key: 'intensity', label: 'Intensity', first: -1, compare: byNumber('intensity') },
+    { key: 'intensity', label: 'Intensity', first: -1,
+      title: 'Transition strength per atom, independent of M',
+      compare: byNumber('intensity') },
+    { key: 'absorption', label: 'Absorption', first: -1,
+      title: 'Intensity weighted by the population of each line\'s lower level at'
+        + ' polarization M, relative to equal populations: the same as Intensity at M = 0',
+      compare: byNumber('absorption') },
   );
   return columns;
 }

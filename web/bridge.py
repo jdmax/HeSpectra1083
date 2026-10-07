@@ -129,8 +129,20 @@ def format_transition_name(ind_lower, ind_upper, isotope):
         return f"Y{lower_sub} → Z{upper_sub}"
 
 
-def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
+def _population(populations, lower):
+    """Relative population of lower level `lower`; 1 when none are given"""
+    return 1.0 if populations is None else float(populations[int(lower)])
+
+
+def build_transitions_table(transitions, isotope, c1_ghz, pump=None,
+                            populations=None):
     """Grouped transitions as a list of row dicts, sorted by intensity.
+
+    `populations` are the relative 2^3S populations (mean 1) from
+    calculate_full_results. Each row's 'absorption' is its intensity with every
+    line weighted by its lower level's population, so it equals 'intensity' at
+    M = 0; None weights every level equally. The grouping itself uses the
+    intensities, so the peaks do not change with M.
 
     With `pump`, also records in _last_pumping what pumping() needs to give
     the readout for any row.
@@ -158,6 +170,9 @@ def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
 
         for k, group in enumerate(groups):
             total_intensity = float(np.sum(group['forces']))
+            total_absorption = sum(
+                force * _population(populations, lower)
+                for force, lower in zip(group['forces'], group['ind_lower']))
             centroid = centroids[k]
 
             centroid_abs = c1_ghz + centroid
@@ -186,6 +201,7 @@ def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
                     'frequency': f"{energy:.3f}",
                     'wavelength': f"{C_NM_GHZ / abs_freq:.6f}" if abs_freq else "0",
                     'intensity': f"{force:.4f}",
+                    'absorption': f"{force * _population(populations, group['ind_lower'][i]):.4f}",
                     'share': f"{100.0 * force / total_intensity:.1f}"
                              if total_intensity else "0.0",
                     # Rounded first, and +0.0 turns -0.0 into 0.0: a lone
@@ -215,6 +231,7 @@ def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
                 'wavelength': f"{centroid_wavelength:.6f}",
                 'transitions': ', '.join(transition_names),
                 'intensity': f"{total_intensity:.4f}",
+                'absorption': f"{total_absorption:.4f}",
                 'lower': [int(v) for v in group['ind_lower']],
                 'upper': [int(v) for v in group['ind_upper']],
                 # How wide the group actually is, which the centroid above
@@ -239,7 +256,8 @@ def build_transitions_table(transitions, isotope, c1_ghz, pump=None):
     return rows
 
 
-def _line_member(energy, force, lower, upper, isotope, c1_ghz, share, offset):
+def _line_member(energy, force, lower, upper, isotope, c1_ghz, share, offset,
+                 population=1.0):
     """One line in the form the level diagram hover expects"""
     abs_freq = c1_ghz + energy
     return {
@@ -249,18 +267,20 @@ def _line_member(energy, force, lower, upper, isotope, c1_ghz, share, offset):
         'frequency': f"{energy:.3f}",
         'wavelength': f"{C_NM_GHZ / abs_freq:.6f}" if abs_freq else "0",
         'intensity': f"{force:.4f}",
+        'absorption': f"{force * population:.4f}",
         'share': share,
         # Rounded first, and +0.0 turns -0.0 into 0.0, as in the peak rows
         'offset': f"{round(offset, 3) + 0.0:+.3f}",
     }
 
 
-def build_lines_table(transitions, isotope, c1_ghz, pump=None):
+def build_lines_table(transitions, isotope, c1_ghz, pump=None, populations=None):
     """Every line as its own row, ungrouped, sorted by intensity.
 
     Rows have the same fields as build_transitions_table's, so the page draws
-    either kind; a line is a one-member peak. With `pump`, also records in
-    _last_lines what pumping_line() needs to give the readout for any row.
+    either kind; a line is a one-member peak. `populations` sets 'absorption'
+    as there. With `pump`, also records in _last_lines what pumping_line()
+    needs to give the readout for any row.
     """
     global _last_lines
     rows = []
@@ -272,7 +292,8 @@ def build_lines_table(transitions, isotope, c1_ghz, pump=None):
                 pol_data['ind_lower'], pol_data['ind_upper'])):
             energy, force = float(energy), float(force)
             member = _line_member(energy, force, lower, upper, isotope, c1_ghz,
-                                  "100.0", 0.0)
+                                  "100.0", 0.0,
+                                  _population(populations, lower))
             rows.append({
                 # Sort key only, rounded with tiebreakers as for the peaks
                 '_sort': (-round(force, 12), pol_index, round(energy, 9)),
@@ -284,6 +305,7 @@ def build_lines_table(transitions, isotope, c1_ghz, pump=None):
                 'span_max': energy,
                 'transitions': member['name'],
                 'intensity': member['intensity'],
+                'absorption': member['absorption'],
                 'lower': [int(lower)],
                 'upper': [int(upper)],
                 'members': [member],
@@ -297,6 +319,7 @@ def build_lines_table(transitions, isotope, c1_ghz, pump=None):
         refs.append(row.pop('_line'))
     _last_lines = {
         'pump': pump, 'isotope': isotope, 'c1_ghz': c1_ghz,
+        'populations': populations,
         'pols': [transitions[k] for k in ('plus', 'minus', 'pi')],
         'rows': refs,
         'index': {ref: i for i, ref in enumerate(refs)},
@@ -440,7 +463,8 @@ def pumping_line(row_index):
             float(energies[i]), float(forces[i]), lower[i], upper[i],
             last['isotope'], last['c1_ghz'],
             f"{100.0 * per_line[i] / total:.1f}" if total else "0.0",
-            float(energies[i]) - laser)
+            float(energies[i]) - laser,
+            _population(last['populations'], lower[i]))
         member['index'] = last['index'][(pol_index, i)]
         readout['members'].append(member)
     return readout
@@ -495,8 +519,11 @@ def _spectra_series(spectra_data, isotope, x_axis_type):
     }
 
 
-def _level_diagram(energy_levels, isotope):
+def _level_diagram(energy_levels, populations, isotope):
     """Level positions, ticks and ranges for the energy level diagram.
+
+    `populations` are the relative 2^3S populations (mean 1) from
+    calculate_full_results; each S level carries its share of the total.
 
     The P states are drawn shifted up by P_OFFSET so both manifolds share one
     axis; the y tick labels are relabelled back to each manifold's own scale.
@@ -506,12 +533,14 @@ def _level_diagram(energy_levels, isotope):
     if isotope == 'He3':
         W_S, mF_S = energy_levels['W3S'], energy_levels['mf3S']
         W_P, mF_P = energy_levels['W3P'], energy_levels['mf3P']
+        pop_S = populations['he3']
         label_S, label_P = 'A', 'B'
         mF_values = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]
         mF_labels = ['-5/2', '-3/2', '-1/2', '1/2', '3/2', '5/2']
     else:  # He4
         W_S, mF_S = energy_levels['W4S'], energy_levels['mf4S']
         W_P, mF_P = energy_levels['W4P'], energy_levels['mf4P']
+        pop_S = populations['he4']
         label_S, label_P = 'Y', 'Z'
         mF_values = [-2.0, -1.0, 0.0, 1.0, 2.0]
         mF_labels = ['-2', '-1', '0', '1', '2']
@@ -549,6 +578,7 @@ def _level_diagram(energy_levels, isotope):
     return {
         'S': [{'mf': float(mF_S[i]),
                'e': float(W_S[i]),
+               'pop': float(pop_S[i] / len(pop_S)),
                'label': f" {label_S}{to_subscript(str(i + 1))}"}
               for i in range(len(W_S))],
         'P': [{'mf': float(mF_P[i]),
@@ -570,8 +600,14 @@ def _level_diagram(energy_levels, isotope):
     }
 
 
-def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
-    """Everything the page needs for one parameter combination"""
+def compute(B, Temp, isotope, x_axis_type, pressure=0.0, M=0.0):
+    """Everything the page needs for one parameter combination.
+
+    M, the He3 nuclear polarization, sets the 2^3S populations by spin
+    temperature and so weights the spectra. For He4 it stands for a He3-He4
+    mixture, as in Nacher's spectreVoigt_He4w0w12. The table and the pumping
+    readout stay per atom, independent of M.
+    """
     calculator = _get_calculator()
 
     # Collisional width for the isotope on display. The Fortran takes wL0 and
@@ -581,7 +617,8 @@ def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
     # isotopes with these, and only the selected one is read back below.
     rate = calculator.collision_per_mbar[isotope]
     wL = rate * float(pressure)
-    full_results = calculator.calculate_full_results(B, Temp, wL0=wL, wL12=wL)
+    full_results = calculator.calculate_full_results(B, Temp, wL0=wL, wL12=wL,
+                                                     M=float(M))
 
     transitions = (full_results['transitions']['he3'] if isotope == 'He3'
                    else full_results['transitions']['he4'])
@@ -602,6 +639,10 @@ def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
     title = f'{isotope} Spectra at B = {B:.4f} T, T = {Temp:.0f} K'
     if wL > 0:
         title += f', P = {float(pressure):.0f} mbar'
+    if M:
+        title += f', M = {float(M):+.2f}'
+
+    populations = full_results['populations']['he3' if isotope == 'He3' else 'he4']
 
     pump = {'calc': calculator, 'wG': doppler_fwhm, 'wL': wL,
             'n_lower': len(full_results['energy_levels'][
@@ -610,9 +651,12 @@ def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
     return {
         'title': title,
         'spectra': _spectra_series(full_results['spectra_data'], isotope, x_axis_type),
-        'table': build_transitions_table(transitions, isotope, calculator.c1_ghz, pump),
-        'lines': build_lines_table(transitions, isotope, calculator.c1_ghz, pump),
-        'levels': _level_diagram(full_results['energy_levels'], isotope),
+        'table': build_transitions_table(transitions, isotope, calculator.c1_ghz,
+                                         pump, populations),
+        'lines': build_lines_table(transitions, isotope, calculator.c1_ghz,
+                                   pump, populations),
+        'levels': _level_diagram(full_results['energy_levels'],
+                                 full_results['populations'], isotope),
         'doppler': f"{doppler_fwhm:.3f}",
         'lorentz': f"{lorentz_fwhm:.3f}",
         'voigt': f"{voigt_fwhm:.3f}",
@@ -622,10 +666,10 @@ def compute(B, Temp, isotope, x_axis_type, pressure=0.0):
     }
 
 
-def compute_js(B, Temp, isotope, x_axis_type, pressure=0.0):
+def compute_js(B, Temp, isotope, x_axis_type, pressure=0.0, M=0.0):
     """compute() converted to plain JS objects/arrays (no PyProxy to free)"""
     import js
     from pyodide.ffi import to_js
-    return to_js(compute(B, Temp, isotope, x_axis_type, pressure),
+    return to_js(compute(B, Temp, isotope, x_axis_type, pressure, M),
                  dict_converter=js.Object.fromEntries)
 

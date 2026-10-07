@@ -82,6 +82,24 @@
       P.J.&nbsp;Nacher's <em>spectreVoigt</em>. 0 leaves the Doppler-only shape.
     </p>
 
+    <h2>Polarization</h2>
+    <div class="control-row">
+      <div class="control">
+        <label for="m-slider">&sup3;He nuclear polarization M</label>
+        <input type="range" id="m-slider" min="-0.99" max="0.99" step="0.01" value="0">
+      </div>
+      <div class="control narrow">
+        <label for="m-input">M</label>
+        <input type="number" id="m-input" min="-0.999" max="0.999" step="0.01" value="0.00">
+      </div>
+    </div>
+    <p class="sub-note">
+      Weights each line by the population of its 2&sup3;S level, at the spin
+      temperature set by M: &prop;&nbsp;e<sup>&beta;m<sub>F</sub></sup> with
+      e<sup>&beta;</sup>&nbsp;=&nbsp;(1+M)/(1&minus;M), as in Nacher's
+      <em>spectreVoigt</em>. For &#8308;He this is a mixture with &sup3;He at M.
+    </p>
+
     <h2>Display Options</h2>
     <fieldset class="radios">
       <legend>Isotope</legend>
@@ -118,6 +136,8 @@
           <li><strong>B Field</strong>: 0.0001 - 10.0 Tesla</li>
           <li><strong>Temperature</strong>: 77 - 1000 Kelvin</li>
           <li><strong>Pressure</strong>: 0 - 300 mbar (collisional broadening only)</li>
+          <li><strong>M</strong>: &minus;0.999 - 0.999, &sup3;He nuclear polarization
+              setting the 2&sup3;S populations (spin temperature)</li>
           <li><strong>Doppler Width</strong>: &prop; &radic;(T/300), Gaussian</li>
           <li><strong>Collisional Width</strong>: 12.0 (&sup3;He) / 10.4 (&#8308;He)
               MHz/mbar FWHM, Lorentzian</li>
@@ -134,6 +154,7 @@
           <li>Hyperfine structure included</li>
           <li>Doppler broadening from temperature</li>
           <li>Collisional broadening from pressure (Voigt profile)</li>
+          <li>2&sup3;S populations from the spin temperature set by M</li>
         </ul>
         <p><strong>Transitions Table:</strong></p>
         <ul>
@@ -143,6 +164,12 @@
               the line width</li>
           <li>Hover a transition arrow for its own frequency, intensity and
               share of the peak</li>
+          <li>Position is given as frequency or wavelength, following the
+              X-axis choice</li>
+          <li>Intensity is the transition strength per atom. Absorption weights
+              each line by its lower level's population at the chosen M, so it
+              tracks the peak heights in the spectrum; at M&nbsp;=&nbsp;0 the
+              two are equal</li>
           <li>Click a column heading to sort by it; click again to reverse</li>
           <li><em>Show individual lines</em> lists every line on its own.
               Selecting one puts the laser on that line and also marks the
@@ -164,7 +191,8 @@
           <li>Levels the selection pumps are always labelled, others once they
               reach 0.1%; hover a lower level for the breakdown by line</li>
           <li>Rates are per atom: level populations (spin temperature) are not
-              included</li>
+              included, so they do not change with M. The spectra and each
+              level's hover do include them</li>
         </ul>
         <img class="brand" src="assets/logo.png" width="160" height="158"
              alt="CLAS12 Polarized &sup3;He">

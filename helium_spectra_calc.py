@@ -341,6 +341,30 @@ class HeliumSpectraCalculator:
             weights += np.abs(amplitude[8, :]) ** 2
         return weights
 
+    def spin_temperature_populations(self, mF, M):
+        """Relative 2^3S populations at the spin temperature set by M.
+
+        Metastability-exchange collisions with ground-state He3 of nuclear
+        polarization M put the metastables at a spin temperature: population
+        proportional to exp(beta m_F), with exp(beta) = (1+M)/(1-M). In an
+        isotopic mixture He4 metastables follow the same distribution in m_S.
+        This is the popa/popy weighting of Nacher's spectreVoigt_w0w12 and
+        spectreVoigt_He4w0w12.
+
+        The Fortran assigns m_F to each energy-ordered level from a table that
+        switches at 0.1619 T. m_F is conserved along B, so the labels from the
+        eigenvectors are exact and follow the level crossing wherever it falls.
+        At exactly B = 0 degenerate eigenvectors need not have a definite m_F.
+
+        Normalised to a mean of 1 rather than a sum of 1, so that M = 0 gives
+        exactly the unweighted spectrum; Nacher's absolute scale is 1/6 (He3)
+        or 1/3 (He4) of this.
+        """
+        if not -1.0 < M < 1.0:
+            raise ValueError(f"M must satisfy -1 < M < 1, got {M}")
+        weights = np.exp(2.0 * np.arctanh(M) * np.asarray(mF, dtype=float))
+        return len(weights) * weights / weights.sum()
+
     def line_widths(self, ind_upper, j0_weight, wL0, wL12):
         """Per-transition Lorentz FWHM, blended by the upper state's J=0 part"""
         p0 = j0_weight[np.asarray(ind_upper, dtype=int)]
@@ -382,14 +406,19 @@ class HeliumSpectraCalculator:
             return rates[0], per_line[0]
         return rates, per_line
 
-    def calculate_full_results(self, B, Temp=300, wL0=0.0, wL12=0.0):
+    def calculate_full_results(self, B, Temp=300, wL0=0.0, wL12=0.0, M=0.0):
         """
         Calculate complete results including all intermediate values needed for file output.
+
+        M is the He3 nuclear polarization, which sets the 2^3S populations
+        (see spin_temperature_populations). It weights the spectra only: the
+        transition forces returned are per atom, independent of M.
 
         Returns a dictionary with:
         - spectra_data: Doppler-broadened spectra
         - energy_levels: All energy eigenvalues (W3S, W3P, W4S, W4P)
         - transitions: All transition data (energies, forces, indices)
+        - populations: Relative 2^3S populations (mean 1), per isotope
         - doppler_widths: D3 and D4
         """
         # Doppler 1/e half-widths, from the molar masses as the Fortran does.
@@ -496,10 +525,17 @@ class HeliumSpectraCalculator:
                width(indzm, p0_4, wL0, wL12),
                width(indzpi, p0_4, wL0, wL12))
 
+        # Each line weighted by the population of its lower level. At M = 0
+        # every weight is exactly 1, leaving the spectra unchanged.
+        pop3 = self.spin_temperature_populations(mf3S, M)
+        pop4 = self.spin_temperature_populations(mf4S, M)
+
         # Generate Doppler- (and, with wL > 0, collision-) broadened spectra
         spectra_data = self.generate_spectra_data(
-            r3pe, r3pf, r3me, r3mf, r3pie, r3pif, D3,
-            r4pe, r4pf, r4me, r4mf, r4pie, r4pif, D4,
+            r3pe, r3pf * pop3[indap], r3me, r3mf * pop3[indam],
+            r3pie, r3pif * pop3[indapi], D3,
+            r4pe, r4pf * pop4[indyp], r4me, r4mf * pop4[indym],
+            r4pie, r4pif * pop4[indypi], D4,
             wl3=wl3, wl4=wl4
         )
 
@@ -524,6 +560,7 @@ class HeliumSpectraCalculator:
                     'pi': {'energies': r4pie, 'forces': r4pif, 'ind_lower': indypi, 'ind_upper': indzpi}
                 }
             },
+            'populations': {'he3': pop3, 'he4': pop4, 'M': M},
             'doppler_widths': {'D3': D3, 'D4': D4},
             'energy_offsets': {'eC1': eC1, 'he4_offset': he4_offset}
         }
