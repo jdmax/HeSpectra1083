@@ -834,9 +834,7 @@ function markSelectedRow() {
 
 /* ---------------------------------------------------------------- export */
 
-// Plain names for the column headings and polarization column. The files are
-// UTF-8 without a BOM (transition names keep their subscripts), so numpy and
-// pandas read the '#' header lines as comments.
+// Plain ASCII throughout: column headings, polarizations and transition names
 const SERIES_CSV = { plus: 'sigma_plus', minus: 'sigma_minus', pi: 'pi' };
 const POL_CSV = { 'σ+': 'sigma+', 'σ-': 'sigma-', 'π': 'pi' };
 
@@ -847,6 +845,13 @@ function exportHeader() {
     `# isotope=${state.isotope} B_T=${state.B} T_K=${state.T}`
       + ` P_mbar=${state.P} M=${state.M}`,
   ];
+}
+
+/** A₆ → B₁₈, A₅ → B₁₇ as A6 - B18, A5 - B17, so the file is plain ASCII. */
+function plainTransitions(text) {
+  return String(text)
+    .replace(/[₀-₉]/g, d => String(d.charCodeAt(0) - 0x2080))
+    .replace(/\s*→\s*/g, ' - ');
 }
 
 /** Quote a field only when it needs it: the transition lists contain commas. */
@@ -874,7 +879,8 @@ function download(filename, lines) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Revoking straight away can cancel the download in Safari and Firefox
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -913,7 +919,9 @@ function exportTable() {
   for (const index of sortedIndices(table, tableColumns())) {
     const row = table[index];
     lines.push(csvLine(columns.map(([key]) =>
-      key === 'polarization' ? (POL_CSV[row[key]] || row[key]) : row[key])));
+      key === 'polarization' ? (POL_CSV[row[key]] || row[key])
+        : key === 'transitions' ? plainTransitions(row[key])
+        : row[key])));
   }
   download(`transitions_${state.lines ? 'lines' : 'peaks'}_${exportStem()}.csv`, lines);
 }
