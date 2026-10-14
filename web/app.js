@@ -245,6 +245,9 @@ function bindControls() {
     rerender();
   });
 
+  document.getElementById('export-spectra').addEventListener('click', exportSpectra);
+  document.getElementById('export-table').addEventListener('click', exportTable);
+
   bindTheme();
 }
 
@@ -827,6 +830,92 @@ function markSelectedRow() {
       ? `inset 3px 0 0 ${colorForPol(row.polarization)}`
       : '';
   }
+}
+
+/* ---------------------------------------------------------------- export */
+
+// Plain names for the column headings and polarization column. The files are
+// UTF-8 without a BOM (transition names keep their subscripts), so numpy and
+// pandas read the '#' header lines as comments.
+const SERIES_CSV = { plus: 'sigma_plus', minus: 'sigma_minus', pi: 'pi' };
+const POL_CSV = { 'σ+': 'sigma+', 'σ-': 'sigma-', 'π': 'pi' };
+
+/** Comment lines recording the conditions, so a saved file describes itself. */
+function exportHeader() {
+  return [
+    `# ${state.data.title}`,
+    `# isotope=${state.isotope} B_T=${state.B} T_K=${state.T}`
+      + ` P_mbar=${state.P} M=${state.M}`,
+  ];
+}
+
+/** Quote a field only when it needs it: the transition lists contain commas. */
+function csvField(value) {
+  const s = String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function csvLine(fields) {
+  return fields.map(csvField).join(',');
+}
+
+/** Stem shared by both files, e.g. He3_B1.0000T_T300K_P0mbar_M0.00 */
+function exportStem() {
+  return `${state.isotope}_B${state.B.toFixed(4)}T_T${Math.round(state.T)}K`
+    + `_P${Math.round(state.P)}mbar_M${state.M.toFixed(2)}`;
+}
+
+function download(filename, lines) {
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * The three polarization spectra on the x-axis showing. Full resolution and
+ * unclamped: the log display's floor is a plotting device, not data.
+ */
+function exportSpectra() {
+  if (!state.data) return;
+  const s = state.data.spectra;
+  const xName = state.xAxis === 'Frequency Offset' ? 'frequency_offset_GHz' : 'wavelength_nm';
+  const lines = [...exportHeader(), csvLine([xName, ...SERIES_KEYS.map(k => SERIES_CSV[k])])];
+  for (let i = 0; i < s.x.length; i++) {
+    lines.push(csvLine([s.x[i], ...SERIES_KEYS.map(k => s[k][i])]));
+  }
+  const axis = state.xAxis === 'Frequency Offset' ? 'freq' : 'wavelength';
+  download(`spectra_${exportStem()}_${axis}.csv`, lines);
+}
+
+/**
+ * The table as showing - peaks or individual lines, in the current sort
+ * order - but with both position columns, whichever the x-axis is.
+ */
+function exportTable() {
+  if (!state.data) return;
+  const table = currentTable();
+  const columns = [
+    ['polarization', 'polarization'],
+    ['frequency', state.lines ? 'frequency_GHz' : 'centroid_frequency_GHz'],
+    ['wavelength', state.lines ? 'wavelength_nm' : 'centroid_wavelength_nm'],
+    ...(state.lines ? [] : [['span', 'span_GHz']]),
+    ['transitions', state.lines ? 'transition' : 'transitions'],
+    ['intensity', 'intensity'],
+    ['absorption', 'absorption'],
+  ];
+  const lines = [...exportHeader(), csvLine(columns.map(([, name]) => name))];
+  for (const index of sortedIndices(table, tableColumns())) {
+    const row = table[index];
+    lines.push(csvLine(columns.map(([key]) =>
+      key === 'polarization' ? (POL_CSV[row[key]] || row[key]) : row[key])));
+  }
+  download(`transitions_${state.lines ? 'lines' : 'peaks'}_${exportStem()}.csv`, lines);
 }
 
 boot();
