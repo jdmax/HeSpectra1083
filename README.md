@@ -4,7 +4,7 @@ Spectrum Calculation for 3He and 4He Near 1083 nm with Zeeman Splitting, Doppler
 
 ## Interfaces
 
-All three share the calculation in `helium_spectra_calc.py`.
+Both share the calculation in `helium_spectra_calc.py`.
 
 | | |
 | --- | --- |
