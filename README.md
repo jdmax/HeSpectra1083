@@ -1,6 +1,6 @@
 # 1083 nm Helium Spectra 
 
-Spectrum Calculation for 3He and 4He Near 1083 nm with Zeeman Splitting, Doppler Broadening based on Fortran code by P.J. Nacher[[1]](#1) , [LKB, ENS Paris.](https://www.lkb.fr/polarisedhelium/) Fortran used with permission.
+Spectrum Calculation for 3He and 4He Near 1083 nm with Zeeman Splitting, Doppler Broadening. Based on Fortran code by P.J. Nacher[[1]](#1) , [LKB, ENS Paris.](https://www.lkb.fr/polarisedhelium/) Fortran used with permission.
 
 ## Interfaces
 
